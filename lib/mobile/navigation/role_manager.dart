@@ -3,6 +3,9 @@ import 'app_router.dart';
 enum UserRole {
   teacher,
   guest,
+  student,
+  admin,
+  supervisor,
 }
 
 class RoleManager {
@@ -18,6 +21,12 @@ class RoleManager {
     switch (role) {
       case UserRole.teacher:
         return AppRouter.teacherRoute;
+      case UserRole.student:
+        return AppRouter.studentRoute;
+      case UserRole.supervisor:
+        return AppRouter.supervisorRoute;
+      case UserRole.admin:
+        return AppRouter.adminRoute;
       case UserRole.guest:
         return AppRouter.loginRoute;
     }
@@ -27,6 +36,12 @@ class RoleManager {
     switch (route) {
       case AppRouter.teacherRoute:
         return role == UserRole.teacher;
+      case AppRouter.studentRoute:
+        return role == UserRole.student;
+      case AppRouter.adminRoute:
+        return role == UserRole.admin;
+      case AppRouter.supervisorRoute:
+        return role == UserRole.supervisor;
       case AppRouter.loginRoute:
         return true;
       default:

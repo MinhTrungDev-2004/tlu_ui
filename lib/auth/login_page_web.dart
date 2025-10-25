@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
-import '../services/user_service.dart';
+import '../services/auth/auth_service.dart';
+import '../services/auth/user_service.dart';
 import '../mobile/navigation/app_router.dart';
 
 // Định nghĩa màu sắc theo giao diện mẫu
@@ -400,15 +400,12 @@ class InfoSection extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // SỬ DỤNG IMAGE.ASSET TẠI ĐÂY
                       Image.asset(
-                        'assets/Logo.png', // Đường dẫn đến ảnh của bạn
-                        width: 110, // Kích thước ảnh bên trong container
+                        'assets/Logo.png',
+                        width: 110,
                         height: 110,
                         fit: BoxFit.contain,
                       ),
-                      // Thêm chữ "1959" nếu nó không nằm trong ảnh logo
-                      const Text('1959', style: TextStyle(color: kPrimaryBlue, fontSize: 12)),
                     ],
                   ),
                 ),
@@ -418,7 +415,7 @@ class InfoSection extends StatelessWidget {
 
               // Tiêu đề lớn
               const Text(
-                'Quản lý hệ thống điểm danh thông minh',
+                'TLU Smart Attendance',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 28,
@@ -430,7 +427,7 @@ class InfoSection extends StatelessWidget {
 
               // Mô tả
               const Text(
-                'Dành riêng cho phòng đào tạo và giảng viên tại trường đại học Thủy Lợi để quản lý điểm danh sinh viên một cách hiệu quả và thông minh.',
+                'Hệ thống Điểm danh Thông minh TLU là nền tảng số hóa dành riêng cho Cán bộ và Sinh viên Đại học Thủy lợi.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,
