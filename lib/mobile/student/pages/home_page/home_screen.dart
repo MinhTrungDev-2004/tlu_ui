@@ -15,13 +15,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final List<Widget> _pages = const [
     _HomeContent(),
-    SizedBox(), // chỗ QR sẽ điều hướng sang trang riêng nên để trống
+    SizedBox(), 
     PersonalPage(),
   ];
 
   void _onItemTapped(int index) {
     if (index == 1) {
-      // 👇 Khi chọn "Quét QR", mở trang riêng
+      // Khi chọn "Quét QR"
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const QRScanScreen()),
