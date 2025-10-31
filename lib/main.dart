@@ -28,6 +28,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'TLU UI App',
       theme: ThemeData(
+
         primarySwatch: Colors.blue,
         scaffoldBackgroundColor: const Color(0xFFF4F6F8),
         fontFamily: 'Inter',

@@ -3,7 +3,7 @@ import '../teacher/pages/nav_teacher.dart';
 import '../teacher/pages/qr_attendance_nav.dart';
 import '../../auth/login_page.dart';
 import '../../web/training_department/pages/training_department_home.dart';
-import '../../web/admin/pages/admin_home.dart';
+import '../../web/admin/pages/home_page.dart';
 import '../../mobile/student/pages/student_home.dart';
 import '../../web/supervisor/pages/supervisor_home.dart';
 
@@ -35,7 +35,7 @@ class AppRouter {
         );
       case adminRoute:
         return MaterialPageRoute(
-          builder: (_) => const AdminHome(),
+          builder: (_) => const HomePage(),
           settings: settings,
         );
       case studentRoute:
