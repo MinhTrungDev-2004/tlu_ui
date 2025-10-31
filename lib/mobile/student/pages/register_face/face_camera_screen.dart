@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:path_provider/path_provider.dart';
-import 'dart:io';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
+// ===================== MÀN HÌNH NHẬN DIỆN KHUÔN MẶT =====================
 class FaceCameraScreen extends StatefulWidget {
   final String? userId;
 
@@ -16,6 +19,7 @@ class FaceCameraScreen extends StatefulWidget {
   State<FaceCameraScreen> createState() => _FaceCameraScreenState();
 }
 
+// ===================== TRẠNG THÁI CAMERA & NHẬN DIỆN =====================
 class _FaceCameraScreenState extends State<FaceCameraScreen> {
   CameraController? _controller;
   bool _isCameraInitialized = false;
@@ -25,12 +29,13 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
   late final FaceDetector _faceDetector;
   int _currentStep = 0; // 0 = nhìn thẳng, 1 = trái, 2 = phải
   int _faceStableCount = 0;
-  final int _requiredStableFrames = 8; // ~2 giây
+  final int _requiredStableFrames = 8;
   final List<String> _savedImages = [];
 
   bool _isFaceDetected = false;
   String _instructionText = "Đưa khuôn mặt vào khung hình";
 
+  // ===================== KHỞI TẠO =====================
   @override
   void initState() {
     super.initState();
@@ -43,51 +48,62 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
     );
   }
 
+  // ===================== KHỞI ĐỘNG CAMERA =====================
   Future<void> _initCamera() async {
-    final statusCamera = await Permission.camera.request();
-    final statusStorage = await Permission.storage.request();
+    try {
+      final statusCamera = await Permission.camera.request();
 
-    if (!statusCamera.isGranted || !statusStorage.isGranted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cần quyền Camera và Storage để tiếp tục')),
+      if (!statusCamera.isGranted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cần quyền Camera để tiếp tục')),
+        );
+        Navigator.pop(context);
+        return;
+      }
+
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không tìm thấy camera nào')),
+        );
+        Navigator.pop(context);
+        return;
+      }
+
+      final frontCamera = cameras.firstWhere(
+        (cam) => cam.lensDirection == CameraLensDirection.front,
+        orElse: () => cameras.first,
       );
-      Navigator.pop(context);
-      return;
+
+      _controller = CameraController(frontCamera, ResolutionPreset.medium, enableAudio: false);
+      await _controller!.initialize();
+
+      if (!mounted) return;
+      setState(() => _isCameraInitialized = true);
+
+      _controller!.startImageStream(_processCameraImage);
+    } catch (e) {
+      debugPrint("Lỗi khởi tạo camera: $e");
     }
-
-    final cameras = await availableCameras();
-    if (cameras.isEmpty) return;
-
-    final frontCamera = cameras.firstWhere(
-      (cam) => cam.lensDirection == CameraLensDirection.front,
-      orElse: () => cameras.first,
-    );
-
-    _controller = CameraController(frontCamera, ResolutionPreset.medium, enableAudio: false);
-    await _controller!.initialize();
-
-    if (!mounted) return;
-    setState(() => _isCameraInitialized = true);
-
-    _controller!.startImageStream(_processCameraImage);
   }
 
+  // ===================== NHẬN DIỆN KHUÔN MẶT =====================
   Future<void> _processCameraImage(CameraImage image) async {
     if (_isDetecting || _isCapturing) return;
     _isDetecting = true;
 
     try {
-      final camera = _controller!.description;
       final rotation =
-          InputImageRotationValue.fromRawValue(camera.sensorOrientation) ??
+          InputImageRotationValue.fromRawValue(_controller!.description.sensorOrientation) ??
               InputImageRotation.rotation0deg;
 
       final allBytes = <int>[];
-      for (var plane in image.planes) allBytes.addAll(plane.bytes);
-      final bytes = Uint8List.fromList(allBytes);
+      for (final plane in image.planes) {
+        allBytes.addAll(plane.bytes);
+      }
 
       final inputImage = InputImage.fromBytes(
-        bytes: bytes,
+        bytes: Uint8List.fromList(allBytes),
         metadata: InputImageMetadata(
           size: Size(image.width.toDouble(), image.height.toDouble()),
           rotation: rotation,
@@ -117,7 +133,7 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
           }
         } else {
           _faceStableCount = 0;
-          _instructionText = "Đưa khuôn mặt vào khung hình đúng hướng";
+          _instructionText = "Đưa khuôn mặt đúng hướng";
         }
       } else {
         _isFaceDetected = false;
@@ -134,6 +150,7 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
     }
   }
 
+  // ===================== CHỤP & LƯU ẢNH =====================
   Future<void> _captureAndSaveImage() async {
     if (_controller == null || !_controller!.value.isInitialized) return;
     if (_currentStep >= 3) return;
@@ -143,14 +160,13 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
     try {
       final XFile file = await _controller!.takePicture();
 
-      // Lưu ảnh vào Gallery (Android 7+)
       final directory = await getTemporaryDirectory();
-      final newPath = '${directory.path}/face_step${_currentStep + 1}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-     await File(file.path).copy(newPath);
+      final newPath =
+          '${directory.path}/face_step${_currentStep + 1}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final savedFile = await File(file.path).copy(newPath);
 
-      
-
-     
+      final url = await _uploadImageToFirebase(savedFile, _currentStep);
+      if (url.isNotEmpty) _savedImages.add(url);
 
       _currentStep++;
       if (_currentStep == 1) _instructionText = "Bước 2/3: Nhìn sang trái";
@@ -158,6 +174,8 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
       else if (_currentStep == 3) {
         _instructionText = "Hoàn tất đăng ký khuôn mặt ✅";
         await _controller?.stopImageStream();
+        await _updateUserFaceData();
+
         if (mounted) {
           Navigator.pushReplacement(
             context,
@@ -174,6 +192,38 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
     }
   }
 
+  // ===================== UPLOAD ẢNH LÊN FIREBASE STORAGE =====================
+  Future<String> _uploadImageToFirebase(File image, int index) async {
+    try {
+      if (widget.userId == null) return '';
+
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('faces/${widget.userId}/face_step_${index + 1}.jpg');
+
+      final uploadTask = await ref.putFile(image);
+      final url = await uploadTask.ref.getDownloadURL();
+      return url;
+    } catch (e) {
+      debugPrint("Lỗi upload Firebase Storage: $e");
+      return '';
+    }
+  }
+
+  // ===================== CẬP NHẬT FIRESTORE =====================
+  Future<void> _updateUserFaceData() async {
+    if (widget.userId == null) return;
+
+    final userRef =
+        FirebaseFirestore.instance.collection('users').doc(widget.userId);
+
+    await userRef.set({
+      'face_images': _savedImages,
+      'is_face_registered': true,
+      'updated_at': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
   @override
   void dispose() {
     _controller?.dispose();
@@ -181,6 +231,7 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
     super.dispose();
   }
 
+  // ===================== GIAO DIỆN NGƯỜI DÙNG =====================
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -276,6 +327,7 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
   }
 }
 
+// ===================== VIỀN KHUÔN MẶT =====================
 class FaceFramePainter extends CustomPainter {
   final bool isDetected;
   final bool isCaptured;
@@ -305,6 +357,7 @@ class FaceFramePainter extends CustomPainter {
   bool shouldRepaint(covariant FaceFramePainter oldDelegate) => true;
 }
 
+// ===================== MÀN HÌNH THÀNH CÔNG =====================
 class SuccessScreen extends StatelessWidget {
   const SuccessScreen({super.key});
 
