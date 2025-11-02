@@ -1,16 +1,11 @@
 import 'package:flutter/material.dart';
-import '../../../services/auth/user_service.dart';
+import 'teaching_schedule_page.dart';
+import 'teacher_management_page.dart';
 
-
-// Định nghĩa màu sắc theo giao diện
-const Color kPrimaryBlue = Color(0xFF19325B); // Xanh đậm nền Sidebar & AppBar
-const Color kCardBlue = Color(0xFF264D9D);    // Xanh đậm thẻ module
-const Color kActiveBlueBackground = Color(0xFF142845); // Màu nền item đang chọn (Hơi tối hơn)
-const Color kBorderActive = Colors.white; // Màu border item đang chọn
-
-// --------------------------------------------------------------------------
-// WIDGET CHÍNH: HOME DASHBOARD PAGE
-// --------------------------------------------------------------------------
+const Color kPrimaryBlue = Color(0xFF19325B);
+const Color kCardBlue = Color(0xFF264D9D);
+const Color kActiveBlueBackground = Color(0xFF142845);
+const Color kBorderActive = Colors.white;
 
 class TrainingDepartmentHome extends StatefulWidget {
   const TrainingDepartmentHome({super.key});
@@ -20,7 +15,6 @@ class TrainingDepartmentHome extends StatefulWidget {
 }
 
 class _TrainingDepartmentHomeState extends State<TrainingDepartmentHome> {
-  // Danh sách các mục điều hướng Sidebar
   final List<Map<String, dynamic>> _sidebarItems = [
     {'title': 'Trang chủ', 'icon': Icons.home, 'index': 0},
     {'title': 'Quản lý khoa', 'icon': Icons.dashboard, 'index': 1},
@@ -34,7 +28,6 @@ class _TrainingDepartmentHomeState extends State<TrainingDepartmentHome> {
     {'title': 'Quản lý điểm danh', 'icon': Icons.check_circle, 'index': 9},
   ];
 
-  // Danh sách các Module chức năng trên Trang Chủ
   final List<String> _dashboardModules = [
     'Quản lý khoa',
     'Quản lý ngành',
@@ -47,7 +40,7 @@ class _TrainingDepartmentHomeState extends State<TrainingDepartmentHome> {
     'Quản lý điểm danh',
   ];
 
-  int _selectedIndex = 0; // Trang chủ là mục đầu tiên
+  int _selectedIndex = 0;
 
   void _onSidebarItemSelected(int index) {
     setState(() {
@@ -58,7 +51,18 @@ class _TrainingDepartmentHomeState extends State<TrainingDepartmentHome> {
   Widget _getContentForIndex(int index) {
     switch (index) {
       case 0:
-        return MainContent(modules: _dashboardModules);
+        return MainContent(
+          modules: _dashboardModules,
+          onModuleTapped: (String title) {
+            if (title == 'Quản lý lịch giảng dạy') {
+              setState(() { _selectedIndex = 8; });
+            }
+          },
+        );
+      case 3:
+        return const TeacherManagementPage();
+      case 8:
+        return const TeachingScheduleManagementPage();
       default:
         return Center(
           child: Text(
@@ -74,20 +78,16 @@ class _TrainingDepartmentHomeState extends State<TrainingDepartmentHome> {
     return Scaffold(
       body: Row(
         children: <Widget>[
-          // 1. Sidebar (Thanh điều hướng dọc)
           Sidebar(
             items: _sidebarItems,
             selectedIndex: _selectedIndex,
             onItemSelected: _onSidebarItemSelected,
           ),
 
-          // 2. Main Content Area (App Bar + Nội dung chính)
           Expanded(
             child: Column(
               children: <Widget>[
-                // Thanh Header/App Bar
                 const CustomAppBar(),
-                // Nội dung chính
                 Expanded(
                   child: _getContentForIndex(_selectedIndex),
                 ),
@@ -99,10 +99,6 @@ class _TrainingDepartmentHomeState extends State<TrainingDepartmentHome> {
     );
   }
 }
-
-// --------------------------------------------------------------------------
-// WIDGET 1: SIDEBAR (Thanh điều hướng dọc)
-// --------------------------------------------------------------------------
 
 class Sidebar extends StatelessWidget {
   final List<Map<String, dynamic>> items;
@@ -119,21 +115,21 @@ class Sidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 250, // Chiều rộng cố định cho Sidebar
+      width: 250,
       color: kPrimaryBlue,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          // Logo & Tiêu đề
+
           Container(
             height: 60,
             padding: const EdgeInsets.all(15.0),
             alignment: Alignment.centerLeft,
             decoration: const BoxDecoration(
-              color: Color(0xFF142845), // Màu đậm hơn cho phần logo
+              color: Color(0xFF142845),
             ),
             child: const Text(
-              'TRƯỜNG ĐẠI HỌC THỦY LỢI HỆ THỐNG ĐIỂM DANH',
+              'Hệ Thống Điểm Danh Thông Minh',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 13,
@@ -142,7 +138,6 @@ class Sidebar extends StatelessWidget {
             ),
           ),
 
-          // Danh sách các mục điều hướng
           Expanded(
             child: ListView.builder(
               padding: EdgeInsets.zero,
@@ -166,7 +161,6 @@ class Sidebar extends StatelessWidget {
   }
 }
 
-// Item trong Sidebar
 class SidebarItem extends StatelessWidget {
   final String title;
   final IconData icon;
@@ -220,10 +214,6 @@ class SidebarItem extends StatelessWidget {
   }
 }
 
-// --------------------------------------------------------------------------
-// WIDGET 2: CUSTOM APP BAR (Thanh tiêu đề ngang)
-// --------------------------------------------------------------------------
-
 class CustomAppBar extends StatelessWidget {
   const CustomAppBar({super.key});
 
@@ -241,20 +231,18 @@ class CustomAppBar extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: <Widget>[
-          // Thông tin ngày tháng
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Text('Tổng quan', style: TextStyle(fontSize: 12, color: Colors.grey)),
               Text(
-                'Thứ Năm, 31 tháng 3, 2025', // Thay bằng ngày tháng thực tế
+                'Thứ Năm, 31 tháng 3, 2025',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey[700]),
               ),
             ],
           ),
 
-          // Thông tin người dùng
           Row(
             children: <Widget>[
               Column(
@@ -266,7 +254,6 @@ class CustomAppBar extends StatelessWidget {
                 ],
               ),
               const SizedBox(width: 10),
-              // Avatar người dùng (Placeholder)
               const CircleAvatar(
                 radius: 18,
                 backgroundColor: kPrimaryBlue,
@@ -282,24 +269,22 @@ class CustomAppBar extends StatelessWidget {
   }
 }
 
-// --------------------------------------------------------------------------
-// WIDGET 3: MAIN CONTENT (Nội dung chính - Hiển thị các Module Card)
-// --------------------------------------------------------------------------
 
 class MainContent extends StatelessWidget {
   final List<String> modules;
+  final void Function(String)? onModuleTapped;
 
-  const MainContent({super.key, required this.modules});
+  const MainContent({super.key, required this.modules, this.onModuleTapped});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: Colors.white, // Nền trắng
+      color: Colors.white,
       padding: const EdgeInsets.all(30.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          // Tiêu đề Trang Chủ
+
           const Text(
             'Trang Chủ',
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
@@ -311,15 +296,15 @@ class MainContent extends StatelessWidget {
           ),
           const SizedBox(height: 30),
 
-          // Lưới các Module Chức Năng
+
           Expanded(
             child: GridView.count(
-              crossAxisCount: 4, // Số cột trên desktop
-              childAspectRatio: 1.2, // Tỷ lệ chiều rộng/chiều cao của thẻ
+              crossAxisCount: 4,
+              childAspectRatio: 1.2,
               crossAxisSpacing: 25.0,
               mainAxisSpacing: 25.0,
               children: modules.map((title) {
-                return ModuleCard(title: title);
+                return ModuleCard(title: title, onTap: onModuleTapped);
               }).toList(),
             ),
           ),
@@ -329,20 +314,24 @@ class MainContent extends StatelessWidget {
   }
 }
 
-// Thẻ Module Chức Năng
+
 class ModuleCard extends StatelessWidget {
   final String title;
+  final void Function(String)? onTap;
 
-  const ModuleCard({super.key, required this.title});
+  const ModuleCard({super.key, required this.title, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () {
-        // Xử lý khi nhấn vào module - hiển thị thông báo
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Tính năng $title sẽ được phát triển')),
-        );
+        if (title == 'Quản lý lịch giảng dạy' && onTap != null) {
+          onTap!(title);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Tính năng $title sẽ được phát triển')),
+          );
+        }
       },
       borderRadius: BorderRadius.circular(10),
       child: Container(
@@ -361,7 +350,7 @@ class ModuleCard extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             const Icon(
-              Icons.menu_book, // Icon mặc định cho các module
+              Icons.menu_book,
               color: Colors.white,
               size: 48,
             ),
