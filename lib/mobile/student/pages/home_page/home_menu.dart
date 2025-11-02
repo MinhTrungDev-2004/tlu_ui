@@ -7,7 +7,7 @@ class HomeMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Drawer(
-      width: 260,
+      width: 255,
       backgroundColor: Colors.white,
       child: SafeArea(
         child: Padding(
@@ -30,7 +30,7 @@ class HomeMenu extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
               // --- Danh mục menu có thể ấn được ---
               _menuItem(
