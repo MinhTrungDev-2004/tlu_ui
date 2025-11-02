@@ -5,7 +5,7 @@ import '../../auth/login_page.dart';
 import '../../auth/splash_screen.dart';
 import '../../web/training_department/pages/training_department_home.dart';
 import '../../web/admin/pages/admin_home.dart';
-import '../../mobile/student/pages/student_home.dart';
+import '../../mobile/student/pages/home_page/home_screen.dart';
 import '../../web/supervisor/pages/supervisor_home.dart';
 
 class AppRouter {
@@ -47,7 +47,7 @@ class AppRouter {
         );
       case studentRoute:
         return MaterialPageRoute(
-          builder: (_) => const StudentHome(),
+          builder: (_) => const HomeScreen(),
           settings: settings,
         );
       case supervisorRoute:

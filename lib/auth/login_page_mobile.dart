@@ -67,15 +67,15 @@ class _LoginPageMobileState extends State<LoginPageMobile> {
           _isLoading = false;
         });
 
-        // Hiển thị thông báo đăng nhập thành công
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Đăng nhập thành công! Chào mừng ${UserService.displayName}'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
+        // // Hiển thị thông báo đăng nhập thành công
+        // if (mounted) {
+        //   ScaffoldMessenger.of(context).showSnackBar(
+        //     SnackBar(
+        //       content: Text('Đăng nhập thành công! Chào mừng ${UserService.displayName}'),
+        //       backgroundColor: Colors.green,
+        //     ),
+        //   );
+        // }
 
         // Điều hướng dựa trên role
         if (mounted) {
@@ -348,7 +348,7 @@ class _LoginPageMobileState extends State<LoginPageMobile> {
                 ),
                 const SizedBox(height: 24),
                 // Thêm padding bottom để tránh bị che bởi bàn phím
-                SizedBox(height: MediaQuery.of(context).viewInsets.bottom + 20),
+                SizedBox(height: MediaQuery.of(context).viewInsets.bottom + 10),
               ],
             ),
           ),
