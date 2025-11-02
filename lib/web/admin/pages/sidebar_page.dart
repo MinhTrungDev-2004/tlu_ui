@@ -20,7 +20,7 @@ class Sidebar extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Image.asset(
-                  'assets/images/logo.png',
+                  'assets/logo.png',
                   height: 50,
                   width: 50,
                   fit: BoxFit.contain,
