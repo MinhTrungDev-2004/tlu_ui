@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
-import '../services/user_service.dart';
+import '../services/auth/auth_service.dart';
+import '../services/auth/user_service.dart';
 import '../mobile/navigation/app_router.dart';
 
 class LoginPageMobile extends StatefulWidget {
