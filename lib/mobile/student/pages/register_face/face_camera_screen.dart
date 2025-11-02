@@ -357,6 +357,10 @@ class FaceFramePainter extends CustomPainter {
   bool shouldRepaint(covariant FaceFramePainter oldDelegate) => true;
 }
 
+
+
+
+
 // ===================== MÀN HÌNH THÀNH CÔNG =====================
 class SuccessScreen extends StatelessWidget {
   const SuccessScreen({super.key});

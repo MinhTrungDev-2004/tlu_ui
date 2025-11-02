@@ -348,7 +348,7 @@ class _LoginPageMobileState extends State<LoginPageMobile> {
                 ),
                 const SizedBox(height: 24),
                 // Thêm padding bottom để tránh bị che bởi bàn phím
-                SizedBox(height: MediaQuery.of(context).viewInsets.bottom + 20),
+                SizedBox(height: MediaQuery.of(context).viewInsets.bottom + 10),
               ],
             ),
           ),
