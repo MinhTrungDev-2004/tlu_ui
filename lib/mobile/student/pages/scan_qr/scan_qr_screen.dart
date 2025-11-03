@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'widgets/class_info_screen.dart';
+import '../register_face/widgets/main_appbar.dart'; // ✅ Import AppBar dùng chung
 
 class QRScanScreen extends StatefulWidget {
   const QRScanScreen({super.key});
@@ -15,7 +16,6 @@ class _QRScanScreenState extends State<QRScanScreen> {
   bool _isScanning = true;
   bool _navigated = false;
   String? _scannedData;
-  bool _flashOn = false;
 
   @override
   void dispose() {
@@ -42,54 +42,18 @@ class _QRScanScreenState extends State<QRScanScreen> {
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
-    final isTablet = screenSize.width > 600;
-    final appBarHeight = isTablet ? 120.0 : 100.0;
     final cutOut = screenSize.width * 0.7;
 
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: PreferredSize(
-        preferredSize: Size(screenSize.width, appBarHeight),
-        child: Container(
-          height: appBarHeight,
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF1470E2), Color(0xFF0D5BB8)],
-            ),
-            borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(20),
-              bottomRight: Radius.circular(20),
-            ),
-          ),
-          child: SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Quét QR Code',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: isTablet ? 24 : 20,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
+
+      // ✅ AppBar thống nhất (giống Home & Register)
+      appBar: buildMainAppBar(
+        context: context,
+        title: 'Quét QR Code',
+        showBack: true, // Có nút quay lại
       ),
+
       body: Stack(
         children: [
           // Camera scanner
@@ -125,7 +89,7 @@ class _QRScanScreenState extends State<QRScanScreen> {
             ),
           ),
 
-          // ✅ Nút hủy duy nhất, căn giữa
+          // ✅ Nút hủy
           Positioned(
             bottom: 40,
             left: 0,
@@ -159,7 +123,7 @@ class _QRScanScreenState extends State<QRScanScreen> {
     final overlayHeight = screenSize.height - 200;
 
     return IgnorePointer(
-      child: Container(
+      child: SizedBox(
         width: screenSize.width,
         height: overlayHeight,
         child: Stack(
