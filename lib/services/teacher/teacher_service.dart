@@ -5,12 +5,12 @@ import '../../models/user/user_model.dart';
 class TeacherService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static const String _collectionName = 'users';
-  static const String _lecturerRole = 'lecturer';
+  static const String _teacherRole = 'teacher';
 
   /// Thêm giảng viên
   static Future<String> addTeacher(UserModel user) async {
     try {
-      final data = user.copyWith(role: _lecturerRole).toMap();
+      final data = user.copyWith(role: _teacherRole).toMap();
       final docRef = await _firestore.collection(_collectionName).add(data);
       return docRef.id;
     } catch (e) {
@@ -23,7 +23,7 @@ class TeacherService {
     try {
       final qs = await _firestore
           .collection(_collectionName)
-          .where('role', isEqualTo: _lecturerRole)
+          .where('role', isEqualTo: _teacherRole)
           .orderBy('name')
           .get();
 
@@ -37,7 +37,7 @@ class TeacherService {
   static Stream<List<UserModel>> getTeachersStream() {
     return _firestore
         .collection(_collectionName)
-        .where('role', isEqualTo: _lecturerRole)
+        .where('role', isEqualTo: _teacherRole)
         .orderBy('name')
         .snapshots()
         .map((snap) =>
@@ -61,7 +61,7 @@ class TeacherService {
       final q = searchQuery.trim().toLowerCase();
       final qs = await _firestore
           .collection(_collectionName)
-          .where('role', isEqualTo: _lecturerRole)
+          .where('role', isEqualTo: _teacherRole)
           .get();
 
       return qs.docs
@@ -79,7 +79,7 @@ class TeacherService {
   /// Cập nhật giảng viên
   static Future<void> updateTeacher(String id, UserModel user) async {
     try {
-      final data = user.copyWith(role: _lecturerRole).toMap();
+      final data = user.copyWith(role: _teacherRole).toMap();
       await _firestore
           .collection(_collectionName)
           .doc(id)
@@ -103,7 +103,7 @@ class TeacherService {
     try {
       final qs = await _firestore
           .collection(_collectionName)
-          .where('role', isEqualTo: _lecturerRole)
+          .where('role', isEqualTo: _teacherRole)
           .where('maGV', isEqualTo: maGV)
           .get();
 

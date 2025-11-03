@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'home_menu.dart';
 import '../scan_qr/scan_qr_screen.dart';
 import '../user_information/user_screen.dart';
-import '../register_face/widgets/main_appbar.dart'; // ✅ Dùng AppBar chung
+import '../register_face/widgets/main_appbar.dart'; //  Dùng AppBar chung
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
