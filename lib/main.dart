@@ -6,6 +6,8 @@ import 'mobile/navigation/app_router.dart';
 import 'mobile/navigation/navigation_service.dart';
 import 'firebase_options.dart';
 
+import 'web/app_router_web.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
@@ -34,7 +36,7 @@ class MyApp extends StatelessWidget {
         fontFamily: 'Inter',
       ),
       navigatorKey: NavigationService.navigatorKey,
-      onGenerateRoute: AppRouter.generateRoute,
+      onGenerateRoute: kIsWeb ? AppRouterWeb.generateRoute : AppRouter.generateRoute,
       initialRoute: AppRouter.splashRoute,
       debugShowCheckedModeBanner: false,
     );
