@@ -5,7 +5,9 @@ import 'package:url_strategy/url_strategy.dart';
 import 'mobile/navigation/app_router.dart';
 import 'mobile/navigation/navigation_service.dart';
 import 'firebase_options.dart';
+
 import 'services/fake_data.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
@@ -29,12 +31,13 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'TLU UI App',
       theme: ThemeData(
+
         primarySwatch: Colors.blue,
         scaffoldBackgroundColor: const Color(0xFFF4F6F8),
         fontFamily: 'Inter',
       ),
       navigatorKey: NavigationService.navigatorKey,
-      onGenerateRoute: AppRouter.generateRoute,
+      onGenerateRoute: kIsWeb ? AppRouterWeb.generateRoute : AppRouter.generateRoute,
       initialRoute: AppRouter.splashRoute,
       debugShowCheckedModeBanner: false,
     );

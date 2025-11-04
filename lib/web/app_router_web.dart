@@ -1,18 +1,14 @@
 import 'package:flutter/material.dart';
-import '../teacher/pages/nav_teacher.dart';
-import '../teacher/pages/qr_attendance_nav.dart';
-import '../../auth/login_page.dart';
-import '../../auth/splash_screen.dart';
-import '../../web/training_department/pages/training_department_home.dart';
-import '../../web/admin/pages/admin_home.dart';
-import '../../mobile/student/pages/home_page/home_screen.dart';
+import 'admin/pages/admin_layout.dart';
+import 'admin/pages/home_page.dart';
+import '../auth/login_page.dart';
+import '../auth/splash_screen.dart';
+import 'training_department/pages/training_department_home.dart';
+import 'student/pages/student_home.dart';
+import 'supervisor/pages/supervisor_home.dart';
 
-import '../../web/supervisor/pages/supervisor_home.dart';
-
-class AppRouter {
+class AppRouterWeb {
   static const String splashRoute = '/';
-  static const String teacherRoute = '/teacher';
-  static const String qrAttendanceRoute = '/qr-attendance';
   static const String loginRoute = '/login';
   static const String trainingDepartmentRoute = '/training-department';
   static const String adminRoute = '/admin';
@@ -26,16 +22,6 @@ class AppRouter {
           builder: (_) => const SplashScreen(),
           settings: settings,
         );
-      case teacherRoute:
-        return MaterialPageRoute(
-          builder: (_) => const TeacherNavigation(),
-          settings: settings,
-        );
-      case qrAttendanceRoute:
-        return MaterialPageRoute(
-          builder: (_) => const QRAttendanceNavigation(),
-          settings: settings,
-        );
       case trainingDepartmentRoute:
         return MaterialPageRoute(
           builder: (_) => const TrainingDepartmentHome(),
@@ -43,12 +29,12 @@ class AppRouter {
         );
       case adminRoute:
         return MaterialPageRoute(
-          builder: (_) => const HomePage(),
+          builder: (_) => const AdminLayout(),
           settings: settings,
         );
       case studentRoute:
         return MaterialPageRoute(
-          builder: (_) => const HomeScreen(),
+          builder: (_) => const StudentHome(),
           settings: settings,
         );
       case supervisorRoute:
