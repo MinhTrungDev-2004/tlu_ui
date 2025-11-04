@@ -1,58 +1,69 @@
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class FaceDataModel {
-  final String id;                  // document ID
+  final String id;
   final String userId;
-  final List<double> embeddings;
+  final List<String> imageUrls;
+  final List<List<double>> embeddingsList;
   final Timestamp updatedAt;
-  final int version;                // số lần cập nhật
-  final String? method;             // "camera", "upload", "import"
+  final int version;
 
   FaceDataModel({
     required this.id,
     required this.userId,
-    required this.embeddings,
+    required this.imageUrls,
+    required this.embeddingsList,
     required this.updatedAt,
     this.version = 1,
-    this.method,
   });
 
+  /// Tạo object từ Firestore map
   factory FaceDataModel.fromMap(Map<String, dynamic> data, String id) {
     return FaceDataModel(
       id: id,
-      userId: data['user_id'] as String,
-      embeddings: List<double>.from((data['embeddings'] as List<dynamic>).map((e) => e.toDouble())),
-      updatedAt: data['updated_at'] as Timestamp,
-      version: data['version'] != null ? int.tryParse(data['version'].toString()) ?? 1 : 1,
-      method: data['method'] as String?,
+      userId: data['user_id'] ?? '',
+      imageUrls: List<String>.from(data['image_urls'] ?? []),
+      // Giải mã mỗi embeddings từ string JSON về List<double>
+      embeddingsList: (data['embeddings_list'] as List<dynamic>? ?? [])
+          .map((e) => List<double>.from(jsonDecode(e as String)))
+          .toList(),
+      updatedAt: data['updated_at'] ?? Timestamp.now(),
+      version: data['version'] != null
+          ? int.tryParse(data['version'].toString()) ?? 1
+          : 1,
     );
   }
 
+  /// Chuyển object thành map để lưu Firestore
   Map<String, dynamic> toMap() {
     return {
       'user_id': userId,
-      'embeddings': embeddings,
+      'image_urls': imageUrls,
+      // Mỗi embeddings List<double> encode thành string
+      'embeddings_list':
+          embeddingsList.map((e) => jsonEncode(e)).toList(),
       'updated_at': updatedAt,
       'version': version,
-      if (method != null) 'method': method,
     };
   }
 
+  /// Tạo bản sao mới khi cần cập nhật
   FaceDataModel copyWith({
     String? id,
     String? userId,
-    List<double>? embeddings,
+    List<String>? imageUrls,
+    List<List<double>>? embeddingsList,
     Timestamp? updatedAt,
     int? version,
-    String? method,
   }) {
     return FaceDataModel(
       id: id ?? this.id,
       userId: userId ?? this.userId,
-      embeddings: embeddings ?? this.embeddings,
+      imageUrls: imageUrls ?? this.imageUrls,
+      embeddingsList: embeddingsList ?? this.embeddingsList,
       updatedAt: updatedAt ?? this.updatedAt,
       version: version ?? this.version,
-      method: method ?? this.method,
     );
   }
 }

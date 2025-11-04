@@ -7,19 +7,19 @@ class UserModel implements HasId {
   final String role; // student | lecturer | pdt | admin
 
   // ==== Giảng viên ====
-  final String? lecturerCode;  // Mã giảng viên
-  final String? hocHamHocVi;   // Học hàm học vị
-  final String? khoa;          // Khoa (tên khoa)
-  final List<String>? teachingClassIds; // Lớp giảng viên dạy
+  final String? lecturerCode;
+  final String? hocHamHocVi;
+  final String? khoa;
+  final List<String>? teachingClassIds;
 
   // ==== Sinh viên ====
-  final String? studentCode;   // Mã sinh viên
-  final String? classId;       // Lớp hành chính
-  final String? departmentId;  // Khoa (ID khoa)
-  final List<String>? classIds; // Danh sách lớp sinh viên tham gia
+  final String? studentCode;
+  final String? classId;
+  final String? departmentId;
+  final List<String>? classIds;
 
   // ==== Nhận diện khuôn mặt ====
-  final String? faceUrl;
+  final List<String>? faceUrls; // 🔹 Danh sách ảnh khuôn mặt
   final bool isFaceRegistered;
 
   UserModel({
@@ -35,7 +35,7 @@ class UserModel implements HasId {
     this.classId,
     this.departmentId,
     this.classIds,
-    this.faceUrl,
+    this.faceUrls,
     this.isFaceRegistered = false,
   });
 
@@ -57,7 +57,7 @@ class UserModel implements HasId {
       classId: _getString(data, 'classId'),
       departmentId: _getString(data, 'departmentId'),
       classIds: _getListString(data, 'classIds'),
-      faceUrl: _getString(data, 'faceUrl'),
+      faceUrls: _getListString(data, 'faceUrls'),
       isFaceRegistered: _getBool(data, 'isFaceRegistered', false),
     );
   }
@@ -77,7 +77,7 @@ class UserModel implements HasId {
       if (classId != null) 'classId': classId,
       if (departmentId != null) 'departmentId': departmentId,
       if (classIds != null) 'classIds': classIds,
-      if (faceUrl != null) 'faceUrl': faceUrl,
+      if (faceUrls != null) 'faceUrls': faceUrls, // 🔹 Danh sách URL ảnh
       'isFaceRegistered': isFaceRegistered,
     };
   }
@@ -115,7 +115,7 @@ class UserModel implements HasId {
     String? classId,
     String? departmentId,
     List<String>? classIds,
-    String? faceUrl,
+    List<String>? faceUrls,
     bool? isFaceRegistered,
   }) {
     return UserModel(
@@ -131,7 +131,7 @@ class UserModel implements HasId {
       classId: classId ?? this.classId,
       departmentId: departmentId ?? this.departmentId,
       classIds: classIds ?? this.classIds,
-      faceUrl: faceUrl ?? this.faceUrl,
+      faceUrls: faceUrls ?? this.faceUrls,
       isFaceRegistered: isFaceRegistered ?? this.isFaceRegistered,
     );
   }

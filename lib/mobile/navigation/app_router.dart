@@ -4,9 +4,8 @@ import '../teacher/pages/qr_attendance_nav.dart';
 import '../../auth/login_page.dart';
 import '../../auth/splash_screen.dart';
 import '../../web/training_department/pages/training_department_home.dart';
-import '../../web/admin/pages/admin_home.dart';
+import '../../web/admin/pages/home_page.dart';
 import '../../mobile/student/pages/home_page/home_screen.dart';
-
 import '../../web/supervisor/pages/supervisor_home.dart';
 
 class AppRouter {

@@ -5,8 +5,8 @@ import 'package:url_strategy/url_strategy.dart';
 import 'mobile/navigation/app_router.dart';
 import 'mobile/navigation/navigation_service.dart';
 import 'firebase_options.dart';
-
 import 'services/fake_data.dart';
+import 'web/app_router_web.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
