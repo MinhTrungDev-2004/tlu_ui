@@ -244,7 +244,7 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
               children: [
                 CircularProgressIndicator(),
                 SizedBox(height: 16),
-                Text('Đang upload ảnh lên server...'),
+                Text('Đang hoàn tất đăng kí...'),
               ],
             ),
           ),
