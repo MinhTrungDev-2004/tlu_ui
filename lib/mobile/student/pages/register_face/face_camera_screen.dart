@@ -6,8 +6,7 @@ import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../../services/student/student_service.dart';
 import 'widgets/main_appbar.dart';
 import 'face_succes_register_screen.dart';
 
@@ -23,6 +22,8 @@ class FaceCameraScreen extends StatefulWidget {
 class _FaceCameraScreenState extends State<FaceCameraScreen> {
   CameraController? _controller;
   late final FaceDetector _faceDetector;
+  final StudentService _studentService = StudentService();
+  
   bool _isCameraInitialized = false;
   bool _isDetecting = false;
   bool _isFaceDetected = false;
@@ -30,8 +31,13 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
 
   int _currentStep = 0;
   int _faceStableCount = 0;
-  final int _requiredStableFrames = 8;
-  final List<String> _savedImages = [];
+  final int _requiredStableFrames = 5; // 🔹 GIẢM XUỐNG 5 FRAME ĐỂ TEST NHANH
+  
+  final Map<String, File> _capturedImages = {
+    'frontal': File(''),
+    'left': File(''),
+    'right': File(''),
+  };
 
   String _instructionText = "Đưa khuôn mặt vào khung hình";
 
@@ -74,7 +80,11 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
       orElse: () => cameras.first,
     );
 
-    _controller = CameraController(frontCamera, ResolutionPreset.medium, enableAudio: false);
+    _controller = CameraController(
+      frontCamera, 
+      ResolutionPreset.medium, 
+      enableAudio: false,
+    );
     await _controller!.initialize();
 
     if (!mounted) return;
@@ -89,8 +99,8 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
 
     try {
       final rotation = InputImageRotationValue.fromRawValue(
-              _controller!.description.sensorOrientation) ??
-          InputImageRotation.rotation0deg;
+        _controller!.description.sensorOrientation,
+      ) ?? InputImageRotation.rotation0deg;
 
       final allBytes = <int>[];
       for (final plane in image.planes) {
@@ -113,25 +123,37 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
         final face = faces.first;
         final angleY = face.headEulerAngleY ?? 0;
 
+        // 🔹 DEBUG: IN GÓC ĐỂ KIỂM TRA (có thể comment lại sau khi test xong)
+        debugPrint("🐛 DEBUG: Step $_currentStep, AngleY: $angleY");
+
         bool isCorrectPose = false;
-        // ✅ Chỉnh step 2 và step 3 mở rộng góc
-        if (_currentStep == 0 && angleY.abs() < 10) {
-          _instructionText = "Bước 1/3: Nhìn thẳng và giữ ổn định";
+        String currentPose = '';
+        
+        // 🔹 ĐIỀU KIỆN GÓC CHO CAMERA TRƯỚC SAMSUNG
+        if (_currentStep == 0 && angleY.abs() < 15) {
+          // BƯỚC 1: NHÌN THẲNG - góc nằm trong khoảng -15 đến +15 độ
+          _instructionText = "Nhìn thẳng và giữ ổn định";
+          currentPose = 'frontal';
           isCorrectPose = true;
-        } else if (_currentStep == 1 && angleY < -10 && angleY > -40) {
-          _instructionText = "Bước 2/3: Nhìn sang trái";
+        } else if (_currentStep == 1 && angleY > 10) {
+          // 🔹 BƯỚC 2: NHÌN SANG TRÁI - góc DƯƠNG (do camera trước Samsung đảo ngược)
+          _instructionText = "Nhìn sang trái";
+          currentPose = 'left';
           isCorrectPose = true;
-        } else if (_currentStep == 2 && angleY > 10 && angleY < 40) {
-          _instructionText = "Bước 3/3: Nhìn sang phải";
+        } else if (_currentStep == 2 && angleY < -10) {
+          // 🔹 BƯỚC 3: NHÌN SANG PHẢI - góc ÂM (do camera trước Samsung đảo ngược)
+          _instructionText = "Nhìn sang phải";
+          currentPose = 'right';
           isCorrectPose = true;
         } else {
+          // HƯỚNG DẪN CHUNG KHI CHƯA ĐÚNG GÓC
           _instructionText = "Đưa khuôn mặt đúng hướng";
         }
 
         if (isCorrectPose) {
           _faceStableCount++;
           if (_faceStableCount >= _requiredStableFrames) {
-            await _captureAndSaveImage();
+            await _captureAndSaveImage(currentPose);
             _faceStableCount = 0;
           }
         } else {
@@ -152,67 +174,147 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
     }
   }
 
-  Future<void> _captureAndSaveImage() async {
-    if (_controller == null || !_controller!.value.isInitialized || _isCapturing) return;
+  Future<void> _captureAndSaveImage(String pose) async {
+    if (_controller == null || 
+        !_controller!.value.isInitialized || 
+        _isCapturing) return;
     if (_currentStep >= 3) return;
 
     setState(() => _isCapturing = true);
 
     try {
+      // 🔹 TẠM DỪNG STREAM ĐỂ CHỤP ẢNH RÕ NÉT
       await _controller!.stopImageStream();
       final XFile file = await _controller!.takePicture();
 
+      // 🔹 LƯU ẢNH VÀO BỘ NHỚ TẠM
       final dir = await getTemporaryDirectory();
-      final savedPath =
-          '${dir.path}/face_${_currentStep + 1}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final savedPath = '${dir.path}/${pose}_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final savedFile = await File(file.path).copy(savedPath);
-
-      final url = await _uploadImageToFirebase(savedFile, _currentStep);
-      if (url.isNotEmpty) _savedImages.add(url);
-
+      
+      _capturedImages[pose] = savedFile;
       _currentStep++;
 
+      // 🔹 TIẾP TỤC QUY TRÌNH HOẶC KẾT THÚC
       if (_currentStep < 3) {
         await _controller!.startImageStream(_processCameraImage);
       } else {
-        await _updateUserFaceData();
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const FaceRegisterSuccessScreen()),
-          );
-        }
+        await _registerFaceWithStudentService();
       }
 
       if (mounted) setState(() {});
     } catch (e) {
       debugPrint("Lỗi chụp ảnh: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi chụp ảnh: $e')),
+        );
+      }
     } finally {
       setState(() => _isCapturing = false);
     }
   }
 
-  Future<String> _uploadImageToFirebase(File image, int index) async {
+  Future<void> _registerFaceWithStudentService() async {
+    if (widget.userId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Lỗi: Không có user ID')),
+        );
+      }
+      return;
+    }
+
     try {
-      if (widget.userId == null) return '';
-      final ref = FirebaseStorage.instance
-          .ref()
-          .child('faces/${widget.userId}/face_${index + 1}.jpg');
-      final uploadTask = await ref.putFile(image);
-      return await uploadTask.ref.getDownloadURL();
+      // 🔹 KIỂM TRA ĐÃ CHỤP ĐỦ 3 ẢNH
+      if (_capturedImages['frontal'] == null || 
+          _capturedImages['left'] == null || 
+          _capturedImages['right'] == null) {
+        throw Exception('Thiếu ảnh để đăng ký');
+      }
+
+      // 🔹 HIỆN LOADING KHI UPLOAD
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const AlertDialog(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Đang upload ảnh lên server...'),
+              ],
+            ),
+          ),
+        );
+      }
+
+      // 🔹 GỌI SERVICE ĐĂNG KÝ KHUÔN MẶT
+      await _studentService.registerFaceImagesOnly(
+        studentId: widget.userId!,
+        frontalImage: _capturedImages['frontal']!,
+        leftImage: _capturedImages['left']!,
+        rightImage: _capturedImages['right']!,
+      );
+
+      // 🔹 ĐÓNG LOADING VÀ CHUYỂN MÀN HÌNH
+      if (mounted) Navigator.pop(context);
+
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const FaceRegisterSuccessScreen()),
+        );
+      }
     } catch (e) {
-      debugPrint("Lỗi upload: $e");
-      return '';
+      if (mounted) Navigator.pop(context);
+      
+      debugPrint("Lỗi đăng ký khuôn mặt: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi đăng ký: $e')),
+        );
+        _showRetryDialog();
+      }
     }
   }
 
-  Future<void> _updateUserFaceData() async {
-    if (widget.userId == null) return;
-    await FirebaseFirestore.instance.collection('users').doc(widget.userId).set({
-      'face_images': _savedImages,
-      'is_face_registered': true,
-      'updated_at': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+  void _showRetryDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Lỗi Đăng Ký'),
+        content: const Text('Có lỗi xảy ra khi đăng ký khuôn mặt. Bạn có muốn thử lại?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _resetCamera();
+            },
+            child: const Text('Thử Lại'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _resetCamera() {
+    setState(() {
+      _currentStep = 0;
+      _faceStableCount = 0;
+      _capturedImages.clear();
+      _instructionText = "Đưa khuôn mặt vào khung hình";
+    });
+    
+    if (_controller != null && _controller!.value.isInitialized) {
+      _controller!.startImageStream(_processCameraImage);
+    }
   }
 
   @override
@@ -232,11 +334,14 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
         showBack: true,
       ),
       body: !_isCameraInitialized
-          ? const Center(child: CircularProgressIndicator(color: Colors.blue))
+          ? const Center(
+              child: CircularProgressIndicator(color: Colors.blue),
+            )
           : Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  // 🔹 CAMERA PREVIEW VỚI KHUNG NHẬN DIỆN
                   Stack(
                     alignment: Alignment.center,
                     children: [
@@ -261,6 +366,8 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
                     ],
                   ),
                   const SizedBox(height: 25),
+                  
+                  // 🔹 CHỈ HIỆN TEXT HƯỚNG DẪN DUY NHẤT
                   Text(
                     _instructionText,
                     textAlign: TextAlign.center,
@@ -270,12 +377,6 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  if (_savedImages.isNotEmpty)
-                    Text(
-                      "Đã lưu ${_savedImages.length}/3 ảnh",
-                      style: const TextStyle(color: Colors.grey),
-                    ),
                 ],
               ),
             ),
@@ -287,7 +388,10 @@ class FaceFramePainter extends CustomPainter {
   final bool isDetected;
   final double progress;
 
-  FaceFramePainter({required this.isDetected, required this.progress});
+  const FaceFramePainter({
+    required this.isDetected,
+    required this.progress,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {

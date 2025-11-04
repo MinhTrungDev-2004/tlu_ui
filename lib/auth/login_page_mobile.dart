@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth/auth_service.dart';
 import '../services/auth/user_service.dart';
+import '../services/student/student_service.dart'; // 🔹 THÊM IMPORT
 import '../mobile/navigation/app_router.dart';
 
 class LoginPageMobile extends StatefulWidget {
@@ -57,31 +58,24 @@ class _LoginPageMobileState extends State<LoginPageMobile> {
 
         if (!mounted) return;
 
-        // Chuyển hướng dựa theo role
-        switch (userRole) {
-          case UserRole.admin:
-            Navigator.pushReplacementNamed(context, AppRouter.adminRoute);
-            break;
-          case UserRole.trainingDepartment:
-            Navigator.pushReplacementNamed(context, AppRouter.trainingDepartmentRoute);
-            break;
-          case UserRole.teacher:
-            Navigator.pushReplacementNamed(context, AppRouter.teacherRoute);
-            break;
-          case UserRole.student:
-            Navigator.pushReplacementNamed(context, AppRouter.studentRoute);
-            break;
-          case UserRole.supervisor:
-            Navigator.pushReplacementNamed(context, AppRouter.supervisorRoute);
-            break;
-          default:
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Tài khoản không hợp lệ.'),
-                backgroundColor: Colors.red,
-              ),
+        // 🔹 KIỂM TRA NẾU LÀ STUDENT VÀ CHƯA ĐĂNG KÝ KHUÔN MẶT
+        if (userRole == UserRole.student) {
+          final studentId = userCredential!.user!.uid;
+          final hasRegisteredFace = await StudentService().hasRegisteredFace(studentId);
+          
+          if (!hasRegisteredFace) {
+            // 🔹 CHƯA ĐĂNG KÝ KHUÔN MẶT - ĐIỀU HƯỚNG ĐẾN TRANG ĐĂNG KÝ
+            Navigator.pushReplacementNamed(
+              context, 
+              AppRouter.faceRegistrationRoute,
+              arguments: studentId, // Truyền studentId để đăng ký
             );
+            return;
+          }
         }
+
+        // 🔹 ĐÃ ĐĂNG KÝ KHUÔN MẶT HOẶC KHÔNG PHẢI STUDENT - ĐIỀU HƯỚNG VỀ TRANG CHỦ
+        _navigateToHomePage(userRole);
       }
     } catch (e) {
       if (mounted) {
@@ -94,6 +88,34 @@ class _LoginPageMobileState extends State<LoginPageMobile> {
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // 🔹 HÀM ĐIỀU HƯỚNG VỀ TRANG CHỦ THEO ROLE
+  void _navigateToHomePage(UserRole userRole) {
+    switch (userRole) {
+      case UserRole.admin:
+        Navigator.pushReplacementNamed(context, AppRouter.adminRoute);
+        break;
+      case UserRole.trainingDepartment:
+        Navigator.pushReplacementNamed(context, AppRouter.trainingDepartmentRoute);
+        break;
+      case UserRole.teacher:
+        Navigator.pushReplacementNamed(context, AppRouter.teacherRoute);
+        break;
+      case UserRole.student:
+        Navigator.pushReplacementNamed(context, AppRouter.studentRoute);
+        break;
+      case UserRole.supervisor:
+        Navigator.pushReplacementNamed(context, AppRouter.supervisorRoute);
+        break;
+      default:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tài khoản không hợp lệ.'),
+            backgroundColor: Colors.red,
+          ),
+        );
     }
   }
 

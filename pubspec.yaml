@@ -55,6 +55,7 @@ dependencies:
   
   google_mlkit_face_detection: ^0.10.0
   table_calendar: ^3.2.0
+  cached_network_image: ^3.3.0
   
 
 
