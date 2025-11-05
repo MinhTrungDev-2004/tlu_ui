@@ -338,9 +338,9 @@ class _UsersPageState extends State<UsersPage> {
   // Map để chuyển đổi giữa role tiếng Anh và tiếng Việt
   final Map<String, String> roleDisplayMap = {
     'student': 'Sinh viên',
-    'lecturer': 'Giảng viên',
+    'teacher': 'Giảng viên',
     'faculty_manager': 'Quản lý Khoa',
-    'academic_affairs': 'Phòng đào tạo',
+    'training_department': 'Phòng đào tạo',
     'supervisor': 'Giám sát',
     'admin': 'Admin',
   };
@@ -349,9 +349,9 @@ class _UsersPageState extends State<UsersPage> {
   final Map<String, String> roleFilterMap = {
     'Tất cả': 'Tất cả',
     'Admin': 'admin',
-    'Giảng viên': 'lecturer',
+    'Giảng viên': 'teacher',
     'Quản lý Khoa': 'faculty_manager',
-    'Phòng đào tạo': 'academic_affairs',
+    'Phòng đào tạo': 'training_department',
     'Giám sát': 'supervisor',
     'Sinh viên': 'student',
   };
