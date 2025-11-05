@@ -40,7 +40,8 @@ dependencies:
   cloud_firestore: ^5.6.12
   url_strategy: ^0.2.0
   firebase_storage: ^12.3.2
-  
+  fl_chart: ^0.68.0
+
   
   
   # Camera and QR Scanner
@@ -53,6 +54,8 @@ dependencies:
   # --- Dành cho nhận diện khuôn mặt 
   
   google_mlkit_face_detection: ^0.10.0
+  table_calendar: ^3.2.0
+  cached_network_image: ^3.3.0
   
 
 

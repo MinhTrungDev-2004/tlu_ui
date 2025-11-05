@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../register_face/widgets/main_appbar.dart'; // 🔹 IMPORT APP BAR CHUNG
 
 class AttendanceHistoryScreen extends StatefulWidget {
   const AttendanceHistoryScreen({super.key});
@@ -17,17 +18,17 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7FB),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1470E2),
-        elevation: 0,
-        title: const Text(
-          "Lịch sử điểm danh",
-          style: TextStyle(fontWeight: FontWeight.bold,color: Colors.white),
-         
-        ),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(bottom: Radius.circular(16)),
-        ),
+      // 🔹 SỬ DỤNG MAIN APP BAR CHUNG
+      appBar: buildMainAppBar(
+        context: context,
+        title: "Lịch sử điểm danh",
+        showBack: true, // 🔹 HIỆN NÚT BACK
+        // actions: [ // 🔹 CÓ THỂ THÊM ACTIONS NẾU CẦN
+        //   IconButton(
+        //     icon: const Icon(Icons.refresh),
+        //     onPressed: () {},
+        //   ),
+        // ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -48,8 +49,6 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
           ],
         ),
       ),
-
-      
     );
   }
 

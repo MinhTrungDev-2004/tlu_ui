@@ -97,7 +97,8 @@ class FaceCard extends StatelessWidget {
                 final result = await Navigator.push<bool>(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => FaceCameraScreen(userId: userId),
+                   builder: (_) => FaceCameraScreen(userId: userId),
+
                   ),
                 );
 

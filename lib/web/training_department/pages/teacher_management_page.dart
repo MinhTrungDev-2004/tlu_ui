@@ -89,10 +89,10 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
   // ==================== SỬA GIẢNG VIÊN ====================
   Future<void> _openEditDialog(UserModel teacher) async {
     _tenGvController.text = teacher.name;
-    _khoaController.text = teacher.khoa ?? '';
+    _khoaController.text = teacher.faculty ?? ''; // 🔹 SỬA: khoa → faculty
 
     // SỬA LỖI: Đảm bảo value luôn có trong danh sách
-    final savedHocVi = teacher.hocHamHocVi;
+    final savedHocVi = teacher.academicTitle; // 🔹 SỬA: hocHamHocVi → academicTitle
     _formHocHamHocVi = _hocHamHocViOptions.contains(savedHocVi)
         ? savedHocVi
         : _hocHamHocViOptions.first;
@@ -172,8 +172,8 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
 
                 final updated = teacher.copyWith(
                   name: _tenGvController.text.trim(),
-                  khoa: _khoaController.text.trim(),
-                  hocHamHocVi: _formHocHamHocVi,
+                  faculty: _khoaController.text.trim(), // 🔹 SỬA: khoa → faculty
+                  academicTitle: _formHocHamHocVi, // 🔹 SỬA: hocHamHocVi → academicTitle
                 );
 
                 try {
@@ -294,7 +294,6 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
                       prefixIcon: const Icon(Icons.search),
                       filled: true,
                       fillColor: Colors.white,
-                      // SỬA: Viền trắng, không viền đen
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(30),
                         borderSide: const BorderSide(color: Colors.black),
@@ -308,7 +307,6 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
                   ),
                 ),
                 const SizedBox(width: 16),
-                
               ],
             ),
             const SizedBox(height: 32),
@@ -400,8 +398,8 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
                         DataCell(Text('$index', style: const TextStyle(fontWeight: FontWeight.w600))),
                         DataCell(Text(t.lecturerCode ?? '-', style: const TextStyle(fontWeight: FontWeight.w500))),
                         DataCell(Text(t.name, style: const TextStyle(fontSize: 14))),
-                        DataCell(Text(t.khoa ?? '-', style: const TextStyle(fontSize: 14))),
-                        DataCell(Text(t.hocHamHocVi ?? '-', style: const TextStyle(fontSize: 14))),
+                        DataCell(Text(t.faculty ?? '-', style: const TextStyle(fontSize: 14))), // 🔹 SỬA: khoa → faculty
+                        DataCell(Text(t.academicTitle ?? '-', style: const TextStyle(fontSize: 14))), // 🔹 SỬA: hocHamHocVi → academicTitle
                         DataCell(
                           Row(
                             mainAxisSize: MainAxisSize.min,
