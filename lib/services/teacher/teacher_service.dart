@@ -6,7 +6,7 @@ import '../../models/user/user_model.dart';
 class TeacherService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static const String _collectionName = 'users';
-  static const String _teacherRole = 'lecturer';
+  static const String _teacherRole = 'teacher';
 
   // ==================== LẤY DANH SÁCH ====================
   static Future<List<UserModel>> getAllTeachers() async {

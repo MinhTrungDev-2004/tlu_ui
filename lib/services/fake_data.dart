@@ -11,7 +11,7 @@ class MockDataGenerator {
 
     // ==== 1️⃣ GIẢNG VIÊN (KHÔNG có khuôn mặt) ====
     final teacher = UserModel(
-      uid: 'w62dVtCBYwMgy6zlErRXLexPZgF3',
+      uid: 'qEWuN8OEaEVdycX0Dhf1xzU6ijp1',
       name: 'Kiều Tuấn Dũng',
       email: 'kieutuandung@tlu.edu.vn',
       role: 'teacher',
