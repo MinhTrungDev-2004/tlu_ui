@@ -3,6 +3,7 @@ import 'teaching_schedule_page.dart';
 import 'teacher_management_page.dart';
 import 'classroom_management_page.dart';
 import 'subject_management_page.dart';
+import 'student_management_page.dart';
 
 const Color kPrimaryBlue = Color(0xFF19325B);
 const Color kCardBlue = Color(0xFF264D9D);
@@ -63,6 +64,8 @@ class _TrainingDepartmentHomeState extends State<TrainingDepartmentHome> {
         );
       case 3:
         return const TeacherManagementPage();
+      case 5:
+        return const StudentManagementPage();
       case 6:
         return const SubjectManagementPage();
       case 7:
