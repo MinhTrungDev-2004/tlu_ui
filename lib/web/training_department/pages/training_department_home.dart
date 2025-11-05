@@ -7,6 +7,7 @@ import 'student_management_page.dart';
 import 'class_management_page.dart';
 import 'major_management_page.dart';
 import 'department_management_page.dart';
+import 'attendance_management_page.dart';
 
 const Color kPrimaryBlue = Color(0xFF19325B);
 const Color kCardBlue = Color(0xFF264D9D);
@@ -55,41 +56,77 @@ class _TrainingDepartmentHomeState extends State<TrainingDepartmentHome> {
   }
 
   Widget _getContentForIndex(int index) {
-    switch (index) {
-      case 0:
-        return MainContent(
-          modules: _dashboardModules,
-          onModuleTapped: (String title) {
-            if (title == 'Quản lý lịch giảng dạy') {
-              setState(() { _selectedIndex = 8; });
-            }
-          },
-        );
-      case 1:
-        return const DepartmentManagementPage();
-      case 2:
-        return const MajorManagementPage(); 
-      case 3:
-        return const TeacherManagementPage();
-      case 4:
+  switch (index) {
+    case 0:
+      return MainContent(
+        modules: _dashboardModules,
+        onModuleTapped: (String title) {
+          // Dùng switch-case để xử lý tất cả các title
+          int newIndex = _selectedIndex; // Giữ index cũ nếu không khớp
+          switch (title) {
+            case 'Quản lý khoa':
+              newIndex = 1;
+              break;
+            case 'Quản lý ngành':
+              newIndex = 2;
+              break;
+            case 'Quản lý giảng viên':
+              newIndex = 3;
+              break;
+            case 'Quản lý lớp học':
+              newIndex = 4;
+              break;
+            case 'Quản lý sinh viên':
+              newIndex = 5;
+              break;
+            case 'Quản lý môn học':
+              newIndex = 6;
+              break;
+            case 'Quản lý phòng học':
+              newIndex = 7;
+              break;
+            case 'Quản lý lịch giảng dạy':
+              newIndex = 8;
+              break;
+            case 'Quản lý điểm danh':
+              newIndex = 9;
+              break;
+          }
+          setState(() {
+            _selectedIndex = newIndex;
+          });
+        },
+      );
+    case 1:
+      return const DepartmentManagementPage();
+    case 2:
+      return const MajorManagementPage();
+    case 3:
+      return const TeacherManagementPage();
+    case 4:
       return const ClassManagementPage();
-      case 5:
-        return const StudentManagementPage();
-      case 6:
-        return const SubjectManagementPage();
-      case 7:
-        return const ClassroomManagementPage();
-      case 8:
-        return const TeachingScheduleManagementPage();
-      default:
-        return Center(
-          child: Text(
-            'Nội dung ${_sidebarItems[index]['title']}',
-            style: const TextStyle(fontSize: 24),
-          ),
-        );
-    }
+    case 5:
+      return const StudentManagementPage();
+    case 6:
+      return const SubjectManagementPage();
+    case 7:
+      return const ClassroomManagementPage();
+    case 8:
+      return const TeachingScheduleManagementPage();
+
+    // --- THÊM CASE MỚI ---
+    case 9:
+      return const AttendanceManagementPage();
+
+    default:
+      return Center(
+        child: Text(
+          'Nội dung ${_sidebarItems[index]['title']}',
+          style: const TextStyle(fontSize: 24),
+        ),
+      );
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -101,7 +138,6 @@ class _TrainingDepartmentHomeState extends State<TrainingDepartmentHome> {
             selectedIndex: _selectedIndex,
             onItemSelected: _onSidebarItemSelected,
           ),
-
           Expanded(
             child: Column(
               children: <Widget>[
@@ -138,7 +174,6 @@ class Sidebar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-
           Container(
             height: 60,
             padding: const EdgeInsets.all(15.0),
@@ -155,7 +190,6 @@ class Sidebar extends StatelessWidget {
               ),
             ),
           ),
-
           Expanded(
             child: ListView.builder(
               padding: EdgeInsets.zero,
@@ -253,22 +287,28 @@ class CustomAppBar extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('Tổng quan', style: TextStyle(fontSize: 12, color: Colors.grey)),
+              const Text('Tổng quan',
+                  style: TextStyle(fontSize: 12, color: Colors.grey)),
               Text(
                 'Thứ Năm, 31 tháng 3, 2025',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey[700]),
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[700]),
               ),
             ],
           ),
-
           Row(
             children: <Widget>[
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text('Ngô Minh Trang', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  Text('Phòng đào tạo', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                  const Text('Ngô Minh Trang',
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text('Phòng đào tạo',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600])),
                 ],
               ),
               const SizedBox(width: 10),
@@ -287,7 +327,6 @@ class CustomAppBar extends StatelessWidget {
   }
 }
 
-
 class MainContent extends StatelessWidget {
   final List<String> modules;
   final void Function(String)? onModuleTapped;
@@ -302,7 +341,6 @@ class MainContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-
           const Text(
             'Trang Chủ',
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
@@ -313,8 +351,6 @@ class MainContent extends StatelessWidget {
             style: TextStyle(fontSize: 16, color: Colors.grey),
           ),
           const SizedBox(height: 30),
-
-
           Expanded(
             child: GridView.count(
               crossAxisCount: 4,
@@ -332,7 +368,7 @@ class MainContent extends StatelessWidget {
   }
 }
 
-
+// --- BẮT ĐẦU PHẦN SỬA 2 ---
 class ModuleCard extends StatelessWidget {
   final String title;
   final void Function(String)? onTap;
@@ -343,14 +379,18 @@ class ModuleCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () {
-        if (title == 'Quản lý lịch giảng dạy' && onTap != null) {
+        // 1. Kiểm tra xem hàm onTap có được truyền vào không
+        if (onTap != null) {
+          // 2. Nếu có, gọi nó với title của thẻ này
           onTap!(title);
         } else {
+          // 3. (Dự phòng) Nếu không có hàm nào được truyền vào
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Tính năng $title sẽ được phát triển')),
           );
         }
       },
+      // --- KẾT THÚC PHẦN SỬA 2 ---
       borderRadius: BorderRadius.circular(10),
       child: Container(
         decoration: BoxDecoration(
