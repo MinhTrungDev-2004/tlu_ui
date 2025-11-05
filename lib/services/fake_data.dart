@@ -12,8 +12,8 @@ class MockDataGenerator {
     // ==== 1️⃣ GIẢNG VIÊN (KHÔNG có khuôn mặt) ====
     final teacher = UserModel(
       uid: 'GV001',
-      name: 'TS. Trần Văn Giảng',
-      email: 'tranvangiang@tlu.edu.vn',
+      name: 'Kiều Tuấn Dũng',
+      email: 'kieutuandung@tlu.edu.vn',
       role: 'lecturer',
       lecturerCode: 'GV001',
       academicTitle: 'Tiến sĩ',
@@ -31,9 +31,9 @@ class MockDataGenerator {
 
     // ==== 2️⃣ SINH VIÊN (CÓ khuôn mặt) ====
     final student = UserModel(
-      uid: 'TyocMfOS3dSayWrdW9aDMVGK7n83',
+      uid: 'DP1KnG7Tp4X5Due249TmStmCtwl1',
       name: 'Lê Đức Chiến',
-      email: 'sinhvien1@sv.tlu.edu.vn',
+      email: 'sinhvien@gmail.com',
       role: 'student',
       studentCode: '2251172253',
       classId: 'KTPM3',
@@ -41,7 +41,7 @@ class MockDataGenerator {
       classIds: ['KTPM3'],
       isFaceRegistered: false, // 🔹 Chưa đăng ký khuôn mặt (sẽ đăng ký sau)
       faceUrls: [], // 🔹 Chưa có ảnh
-      faceDataId: 'face_TyocMfOS3dSayWrdW9aDMVGK7n83', // 🔹 Reference đến face_data
+      faceDataId: 'face_DP1KnG7Tp4X5Due249TmStmCtwl1', // 🔹 Reference đến face_data
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );
@@ -51,9 +51,9 @@ class MockDataGenerator {
 
     // ==== 3️⃣ FACE DATA CHO SINH VIÊN (TRỐNG - chờ đăng ký) ====
     final faceData = FaceDataModel(
-      id: 'face_TyocMfOS3dSayWrdW9aDMVGK7n83',
-      userId: 'TyocMfOS3dSayWrdW9aDMVGK7n83',
-      userEmail: 'nguyenvana@sv.tlu.edu.vn',
+      id: 'face_DP1KnG7Tp4X5Due249TmStmCtwl1',
+      userId: 'DP1KnG7Tp4X5Due249TmStmCtwl1',
+      userEmail: 'sinhvien1@sv.tlu.edu.vn',
       userRole: 'student',
       poseImageUrls: {}, // 🔹 Map rỗng - chưa có ảnh
       poseEmbeddings: {}, // 🔹 Map rỗng - chưa có embeddings
