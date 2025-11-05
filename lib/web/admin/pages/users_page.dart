@@ -18,7 +18,91 @@ class _UsersPageState extends State<UsersPage> {
   String searchQuery = '';
   String selectedRole = 'Tất cả';
 
-  // Hàm import CSV chỉ cho Firebase Auth
+  // Map role với các trường profile mặc định
+  final Map<String, Map<String, dynamic>> roleProfiles = {
+    'student': {
+      'displayName': 'Sinh viên',
+      'profileFields': {
+        'phone': '',
+        'address': '',
+        'birthday': '',
+        'gender': '',
+        'avatar': '',
+        'studentClass': '',
+        'course': '',
+        'year': '',
+        'major': '',
+      }
+    },
+    'lecturer': {
+      'displayName': 'Giảng viên',
+      'profileFields': {
+        'phone': '',
+        'address': '',
+        'birthday': '',
+        'gender': '',
+        'avatar': '',
+        'faculty': '',
+        'department': '',
+        'degree': '',
+        'specialization': '',
+      }
+    },
+    'faculty_manager': {
+      'displayName': 'Quản lý khoa',
+      'profileFields': {
+        'phone': '',
+        'address': '',
+        'birthday': '',
+        'gender': '',
+        'avatar': '',
+        'faculty': '',
+        'managementLevel': '',
+        'responsibility': '',
+      }
+    },
+    'academic_affairs': {
+      'displayName': 'Phòng đào tạo',
+      'profileFields': {
+        'phone': '',
+        'address': '',
+        'birthday': '',
+        'gender': '',
+        'avatar': '',
+        'trainingDepartment': '',
+        'position': '',
+      }
+    },
+    'supervisor': {
+      'displayName': 'Giám sát',
+      'profileFields': {
+        'phone': '',
+        'address': '',
+        'birthday': '',
+        'gender': '',
+        'avatar': '',
+        'supervisionArea': '',
+        'position': '',
+      }
+    },
+    'admin': {
+      'displayName': 'Admin',
+      'profileFields': {
+        'phone': '',
+        'address': '',
+        'birthday': '',
+        'gender': '',
+        'avatar': '',
+      }
+    },
+  };
+
+  // Hàm tạo profile mặc định theo role
+  Map<String, dynamic> _getDefaultProfile(String role) {
+    return roleProfiles[role]?['profileFields'] ?? {};
+  }
+
+  // Hàm import CSV với đầy đủ trường thông tin
   Future<void> _importUsersFromCsv() async {
     final uploadInput = html.FileUploadInputElement()..accept = '.csv';
     uploadInput.click();
@@ -45,10 +129,15 @@ class _UsersPageState extends State<UsersPage> {
       }
 
       final header = lines.first.split(',').map((s) => s.trim().toLowerCase()).toList();
-      if (header.length < 3 || header[0] != 'email' || header[1] != 'password' || header[2] != 'name') {
+
+      // Kiểm tra định dạng CSV với các trường đầy đủ
+      final requiredFields = ['id', 'name', 'email', 'role', 'password'];
+      final missingFields = requiredFields.where((field) => !header.contains(field)).toList();
+
+      if (missingFields.isNotEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Định dạng CSV: email,password,name')),
+            SnackBar(content: Text('Thiếu các trường bắt buộc: ${missingFields.join(', ')}')),
           );
         }
         return;
@@ -74,26 +163,94 @@ class _UsersPageState extends State<UsersPage> {
         );
       }
 
+      // Lấy index của các cột
+      final idIndex = header.indexOf('id');
+      final nameIndex = header.indexOf('name');
+      final emailIndex = header.indexOf('email');
+      final roleIndex = header.indexOf('role');
+      final passwordIndex = header.indexOf('password');
+
       for (var i = 1; i < lines.length; i++) {
         final cols = lines[i].split(',').map((s) => s.trim()).toList();
-        if (cols.length < 3) {
+        if (cols.length < requiredFields.length) {
           failed++;
           errorMessages.add('Dòng ${i + 1}: Thiếu thông tin');
           continue;
         }
 
-        final email = cols[0];
-        final password = cols[1];
-        final name = cols[2];
+        final customId = cols[idIndex];
+        final fullName = cols[nameIndex];
+        final email = cols[emailIndex];
+        final role = cols[roleIndex];
+        final password = cols[passwordIndex];
+
+        // Kiểm tra role hợp lệ
+        if (!roleProfiles.containsKey(role)) {
+          failed++;
+          errorMessages.add('Dòng ${i + 1} ($email): Vai trò "$role" không hợp lệ');
+          continue;
+        }
 
         try {
-          // Chỉ tạo user trong Firebase Authentication
-          await _auth.createUserWithEmailAndPassword(
-              email: email,
-              password: password
-          );
-          success++;
+          // Kiểm tra xem 'id' đã tồn tại chưa
+          final existingIdQuery = await _firestore
+              .collection('users')
+              .where('id', isEqualTo: customId)
+              .limit(1)
+              .get();
 
+          if (existingIdQuery.docs.isNotEmpty) {
+            failed++;
+            errorMessages.add('Dòng ${i + 1} ($email): Mã người dùng "$customId" đã tồn tại');
+            continue;
+          }
+
+          // Kiểm tra xem email đã tồn tại chưa
+          final existingEmailQuery = await _firestore
+              .collection('users')
+              .where('email', isEqualTo: email)
+              .limit(1)
+              .get();
+
+          if (existingEmailQuery.docs.isNotEmpty) {
+            failed++;
+            errorMessages.add('Dòng ${i + 1} ($email): Email đã được sử dụng');
+            continue;
+          }
+
+          // 1️⃣ Tạo user trong Firebase Authentication
+          final userCred = await _auth.createUserWithEmailAndPassword(
+            email: email,
+            password: password,
+          );
+
+          // 2️⃣ Tạo profile mặc định theo role
+          final defaultProfile = _getDefaultProfile(role);
+
+          // 3️⃣ Chuẩn bị dữ liệu để lưu vào Firestore
+          final userData = {
+            'uid': userCred.user!.uid,
+            'id': customId,
+            'name': fullName,
+            'email': email,
+            'role': role,
+            'status': 'Hoạt động',
+            'profileCompleted': false,
+            'createdBy': 'admin',
+            'createdAt': FieldValue.serverTimestamp(),
+            'lastLogin': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+            'profile': defaultProfile,
+            'profileUpdatedAt': null,
+          };
+
+          // 4️⃣ Lưu thông tin vào Firestore với UID làm DOCUMENT ID
+          await _firestore
+              .collection('users')
+              .doc(userCred.user!.uid)
+              .set(userData);
+
+          success++;
           print('✅ Đã tạo tài khoản: $email');
 
         } on FirebaseAuthException catch (e) {
@@ -169,8 +326,38 @@ class _UsersPageState extends State<UsersPage> {
             ),
           );
         }
+
+        // Refresh danh sách nếu có thành công
+        if (success > 0) {
+          setState(() {});
+        }
       }
     });
+  }
+
+  // Map để chuyển đổi giữa role tiếng Anh và tiếng Việt
+  final Map<String, String> roleDisplayMap = {
+    'student': 'Sinh viên',
+    'lecturer': 'Giảng viên',
+    'faculty_manager': 'Quản lý Khoa',
+    'academic_affairs': 'Phòng đào tạo',
+    'supervisor': 'Giám sát',
+    'admin': 'Admin',
+  };
+
+  // Map để filter (tiếng Việt -> tiếng Anh)
+  final Map<String, String> roleFilterMap = {
+    'Tất cả': 'Tất cả',
+    'Admin': 'admin',
+    'Giảng viên': 'lecturer',
+    'Quản lý Khoa': 'faculty_manager',
+    'Phòng đào tạo': 'academic_affairs',
+    'Giám sát': 'supervisor',
+    'Sinh viên': 'student',
+  };
+
+  String _getRoleDisplayName(String role) {
+    return roleDisplayMap[role] ?? role;
   }
 
   @override
@@ -201,7 +388,7 @@ class _UsersPageState extends State<UsersPage> {
                 ),
                 Row(
                   children: [
-                    // Nút Nhập CSV - SỬA THÀNH _importUsersFromCsv
+                    // Nút Nhập CSV
                     ElevatedButton.icon(
                       onPressed: _importUsersFromCsv,
                       icon: const Icon(Icons.file_upload),
@@ -297,7 +484,8 @@ class _UsersPageState extends State<UsersPage> {
                             final user = doc.data() as Map<String, dynamic>;
                             final matchesSearch = user['name'].toString().toLowerCase().contains(searchQuery.toLowerCase()) ||
                                 user['email'].toString().toLowerCase().contains(searchQuery.toLowerCase());
-                            final matchesRole = selectedRole == 'Tất cả' || user['role'] == selectedRole;
+                            final matchesRole = selectedRole == 'Tất cả' ||
+                                user['role'] == roleFilterMap[selectedRole];
                             return matchesSearch && matchesRole;
                           }).toList();
 
@@ -320,7 +508,6 @@ class _UsersPageState extends State<UsersPage> {
     );
   }
 
-  // Các hàm khác giữ nguyên...
   Widget _buildSearchFilter(double screenWidth) {
     if (screenWidth > 800) {
       return Row(
@@ -679,17 +866,18 @@ class _UsersPageState extends State<UsersPage> {
   }
 
   Widget _buildRoleChip(String role) {
+    final displayRole = _getRoleDisplayName(role);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: _getRoleColor(role).withOpacity(0.1),
+        color: _getRoleColor(displayRole).withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _getRoleColor(role)),
+        border: Border.all(color: _getRoleColor(displayRole)),
       ),
       child: Text(
-        role,
+        displayRole,
         style: TextStyle(
-          color: _getRoleColor(role),
+          color: _getRoleColor(displayRole),
           fontWeight: FontWeight.w500,
           fontSize: 12,
         ),
@@ -732,6 +920,12 @@ class _UsersPageState extends State<UsersPage> {
         return Colors.blue;
       case 'Sinh viên':
         return Colors.green;
+      case 'Quản lý Khoa':
+        return Colors.orange;
+      case 'Phòng đào tạo':
+        return Colors.teal;
+      case 'Giám sát':
+        return Colors.brown;
       default:
         return Colors.grey;
     }
@@ -776,14 +970,14 @@ class _UsersPageState extends State<UsersPage> {
 
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Đã cập nhật thông tin người dùng!'),
+                content: Text('Đã cập nhật người dùng thành công!'),
                 backgroundColor: Colors.green,
               ),
             );
           } catch (e) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Lỗi khi cập nhật: $e'),
+                content: Text('❌ Lỗi khi cập nhật: $e'),
                 backgroundColor: Colors.red,
               ),
             );
@@ -812,7 +1006,7 @@ class _UsersPageState extends State<UsersPage> {
               _buildDetailItem('Họ và tên', user['name'] ?? 'Chưa có'),
               _buildDetailItem('Email', user['email'] ?? 'Chưa có'),
               _buildDetailItem('Mã người dùng', user['teacherId'] ?? user['id'] ?? 'Chưa có'),
-              _buildDetailItem('Vai trò', user['role'] ?? 'Chưa có'),
+              _buildDetailItem('Vai trò', _getRoleDisplayName(user['role'] ?? 'Chưa có')),
               _buildDetailItem('Trạng thái', user['status'] ?? 'Hoạt động'),
               _buildDetailItem('Lần đăng nhập cuối', _formatLastLogin(user['lastLogin'])),
               if (user['createdAt'] != null)
@@ -904,7 +1098,6 @@ class _UsersPageState extends State<UsersPage> {
       ),
     );
   }
-
   void _showDeleteUserDialog(String docId, Map<String, dynamic> user) {
     showDialog(
       context: context,

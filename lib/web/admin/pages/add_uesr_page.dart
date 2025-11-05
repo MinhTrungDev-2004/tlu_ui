@@ -26,77 +26,37 @@ class _AddUserPageDialogState extends State<AddUserPageDialog> {
     'student': {
       'displayName': 'Sinh viên',
       'profileFields': {
-        'phone': '',
-        'address': '',
-        'birthday': '',
-        'gender': '',
-        'avatar': '',
-        'studentClass': '',
-        'course': '',
-        'year': '',
-        'major': '',
+        'studentId': {'label': 'Mã sinh viên', 'initialValue': ''},
+        'class': {'label': 'Lớp', 'initialValue': ''},
       }
     },
-    'lecturer': {
+    'teacher': {
       'displayName': 'Giảng viên',
       'profileFields': {
-        'phone': '',
-        'address': '',
-        'birthday': '',
-        'gender': '',
-        'avatar': '',
-        'faculty': '',
-        'department': '',
-        'degree': '',
-        'specialization': '',
+        'department': {'label': 'Khoa', 'initialValue': ''},
       }
     },
     'faculty_manager': {
       'displayName': 'Quản lý khoa',
       'profileFields': {
-        'phone': '',
-        'address': '',
-        'birthday': '',
-        'gender': '',
-        'avatar': '',
-        'faculty': '',
-        'managementLevel': '',
-        'responsibility': '',
+        'department': {'label': 'Khoa', 'initialValue': ''},
       }
     },
-    'academic_affairs': {
+    'training_department': {
       'displayName': 'Phòng đào tạo',
       'profileFields': {
-        'phone': '',
-        'address': '',
-        'birthday': '',
-        'gender': '',
-        'avatar': '',
-        'trainingDepartment': '',
-        'position': '',
+        'office': {'label': 'Văn phòng', 'initialValue': ''},
       }
     },
     'supervisor': {
       'displayName': 'Giám sát',
       'profileFields': {
-        'phone': '',
-        'address': '',
-        'birthday': '',
-        'gender': '',
-        'avatar': '',
-        'supervisionArea': '',
-        'position': '',
+        'area': {'label': 'Khu vực giám sát', 'initialValue': ''},
       }
     },
     'admin': {
-      'displayName': 'Admin',
-      'profileFields': {
-        'phone': '',
-        'address': '',
-        'birthday': '',
-        'gender': '',
-        'avatar': '',
-      }
+      'displayName': 'Quản trị viên',
+      'profileFields': {}
     },
   };
 
@@ -429,11 +389,11 @@ class _AddUserPageDialogState extends State<AddUserPageDialog> {
     switch (_selectedRoleKey) {
       case 'student':
         return 'Ví dụ: SV001, SV2024001...';
-      case 'lecturer':
+      case 'teacher':
         return 'Ví dụ: GV001, GVCNTT...';
       case 'faculty_manager':
         return 'Ví dụ: QLK001, QL_KHOA_CNTT...';
-      case 'academic_affairs':
+      case 'training_department':
         return 'Ví dụ: PDT001, PDT_DAOTAO...';
       case 'supervisor':
         return 'Ví dụ: GS001, GIAMSAT...';
