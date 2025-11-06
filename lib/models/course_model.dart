@@ -4,12 +4,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class CourseModel implements HasId {
   final String _id;
   final String name;
-  final String lecturerId;      // Giảng viên phụ trách khóa học
-  final String departmentId;   // Khoa / bộ môn
-  final List<String> classIds; // Lớp học thuộc khóa học
+  final String departmentId;   // Khoa / bộ môn quản lý
   final String? description;    // Mô tả khóa học
   final int credits;           // Số tín chỉ
-  final String? semester;       // Học kỳ
+  final String? semester;       // Học kỳ (nếu cố định)
+  
+  // ⭐ SỬA: XÓA lecturerId, classIds - thay bằng:
+  final List<String>? lecturerIds; // ⭐ THÊM: Danh sách GV có thể dạy môn này
+  final String? courseCode;     // ⭐ THÊM: Mã môn học (ví dụ: "CT101")
+  
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final bool isActive;
@@ -17,17 +20,16 @@ class CourseModel implements HasId {
   CourseModel({
     required String id,
     required this.name,
-    required this.lecturerId,
     required this.departmentId,
-    List<String>? classIds,
+    this.lecturerIds,
+    this.courseCode,
     this.description,
-    this.credits = 3, // Giá trị mặc định
+    this.credits = 3,
     this.semester,
     this.createdAt,
     this.updatedAt,
     this.isActive = true,
-  })  : _id = id,
-        classIds = classIds ?? [];
+  }) : _id = id;
 
   @override
   String get id => _id;
@@ -36,9 +38,9 @@ class CourseModel implements HasId {
     return CourseModel(
       id: id,
       name: _getString(data, 'name'),
-      lecturerId: _getString(data, 'lecturer_id'),
       departmentId: _getString(data, 'department_id'),
-      classIds: _getListString(data, 'class_ids'),
+      lecturerIds: _getListString(data, 'lecturer_ids'), // ⭐ SỬA
+      courseCode: _getString(data, 'course_code'), // ⭐ THÊM
       description: _getString(data, 'description'),
       credits: _getInt(data, 'credits', 3),
       semester: _getString(data, 'semester'),
@@ -52,9 +54,9 @@ class CourseModel implements HasId {
   Map<String, dynamic> toMap() {
     return {
       'name': name,
-      'lecturer_id': lecturerId,
       'department_id': departmentId,
-      'class_ids': classIds,
+      if (lecturerIds != null) 'lecturer_ids': lecturerIds, // ⭐ SỬA
+      if (courseCode != null) 'course_code': courseCode, // ⭐ THÊM
       if (description != null && description!.isNotEmpty) 'description': description,
       'credits': credits,
       if (semester != null && semester!.isNotEmpty) 'semester': semester,
@@ -67,9 +69,9 @@ class CourseModel implements HasId {
   CourseModel copyWith({
     String? id,
     String? name,
-    String? teacherId,
     String? departmentId,
-    List<String>? classIds,
+    List<String>? lecturerIds, // ⭐ SỬA
+    String? courseCode, // ⭐ THÊM
     String? description,
     int? credits,
     String? semester,
@@ -80,11 +82,11 @@ class CourseModel implements HasId {
     return CourseModel(
       id: id ?? this.id,
       name: name ?? this.name,
-      lecturerId: lecturerId ?? this.lecturerId,
       departmentId: departmentId ?? this.departmentId,
-      classIds: classIds ?? this.classIds,
+      lecturerIds: lecturerIds ?? this.lecturerIds, // ⭐ SỬA
+      courseCode: courseCode ?? this.courseCode, // ⭐ THÊM
       description: description ?? this.description,
-      credits: credits ?? this.credits, 
+      credits: credits ?? this.credits,
       semester: semester ?? this.semester,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -94,32 +96,35 @@ class CourseModel implements HasId {
 
   // ===== Business Logic Methods =====
   
-  /// Kiểm tra khóa học có lớp học cụ thể không
-  bool containsClass(String classId) {
-    return classIds.contains(classId);
+  /// ⭐ SỬA: Quản lý giảng viên (thay vì lớp học)
+  bool canTeach(String lecturerId) {
+    return lecturerIds?.contains(lecturerId) ?? false;
   }
 
-  /// Thêm lớp học vào khóa học
-  CourseModel addClass(String classId) {
-    final newClassIds = List<String>.from(classIds);
-    if (!newClassIds.contains(classId)) {
-      newClassIds.add(classId);
+  /// ⭐ THÊM: Thêm giảng viên có thể dạy môn này
+  CourseModel addLecturer(String lecturerId) {
+    final newLecturerIds = List<String>.from(lecturerIds ?? []);
+    if (!newLecturerIds.contains(lecturerId)) {
+      newLecturerIds.add(lecturerId);
     }
-    return copyWith(classIds: newClassIds);
+    return copyWith(lecturerIds: newLecturerIds);
   }
 
-  /// Xóa lớp học khỏi khóa học
-  CourseModel removeClass(String classId) {
-    final newClassIds = List<String>.from(classIds);
-    newClassIds.remove(classId);
-    return copyWith(classIds: newClassIds);
+  /// ⭐ THÊM: Xóa giảng viên khỏi danh sách
+  CourseModel removeLecturer(String lecturerId) {
+    final newLecturerIds = List<String>.from(lecturerIds ?? []);
+    newLecturerIds.remove(lecturerId);
+    return copyWith(lecturerIds: newLecturerIds);
   }
 
   /// Kiểm tra khóa học có đang hoạt động không
   bool get isActiveCourse => isActive;
 
-  /// Lấy số lượng lớp học
-  int get classCount => classIds.length;
+  /// ⭐ THÊM: Lấy số lượng giảng viên có thể dạy
+  int get lecturerCount => lecturerIds?.length ?? 0;
+
+  /// ⭐ THÊM: Kiểm tra có mã môn học không
+  bool get hasCourseCode => courseCode != null && courseCode!.isNotEmpty;
 
   // ===== Helper functions =====
   static String _getString(Map<String, dynamic> data, String key, [String defaultValue = '']) {
@@ -128,13 +133,13 @@ class CourseModel implements HasId {
     return value.toString();
   }
 
-  static List<String> _getListString(Map<String, dynamic> data, String key) {
+  static List<String>? _getListString(Map<String, dynamic> data, String key) {
     final value = data[key];
-    if (value == null) return [];
+    if (value == null) return null;
     if (value is List) {
       return value.whereType<String>().toList();
     }
-    return [];
+    return null;
   }
 
   static int _getInt(Map<String, dynamic> data, String key, [int defaultValue = 0]) {
@@ -156,7 +161,7 @@ class CourseModel implements HasId {
 
   @override
   String toString() {
-    return 'CourseModel(id: $id, name: $name, lecturerId: $lecturerId, classes: $classCount)';
+    return 'CourseModel(id: $id, name: $name, code: $courseCode, lecturers: $lecturerCount)';
   }
 
   @override

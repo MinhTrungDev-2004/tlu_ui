@@ -85,7 +85,7 @@ class ListClassScreen extends StatelessWidget {
                   text: session.classId,
                 ),
                 Text(
-                  'Ngày ${session.date.toDate().day}/${session.date.toDate().month}/${session.date.toDate().year}',
+                  'Ngày ${session.dateDisplay}',
                   style: const TextStyle(
                     fontSize: 13,
                     color: Colors.black54,
@@ -145,7 +145,7 @@ class ListClassScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     const Text(
-                      'Lớp bắt đầu',
+                      'Thời gian',
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.black54,
@@ -153,7 +153,7 @@ class ListClassScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      _formatTimeWithAMPM(session.startTime),
+                      session.timeDisplay,
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -164,6 +164,10 @@ class ListClassScreen extends StatelessWidget {
                 ),
               ],
             ),
+
+            // ⭐ THÊM: Trạng thái buổi học
+            const SizedBox(height: 8),
+            _buildSessionStatus(session),
           ],
         ),
       ),
@@ -186,12 +190,60 @@ class ListClassScreen extends StatelessWidget {
     );
   }
 
-  String _formatTimeWithAMPM(Timestamp timestamp) {
-    final time = timestamp.toDate();
-    final hour = time.hour;
-    final minute = time.minute.toString().padLeft(2, '0');
-    final period = hour < 12 ? 'AM' : 'PM';
-    final displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
-    return '$displayHour:$minute $period';
+  // ⭐ THÊM: Hiển thị trạng thái buổi học
+  Widget _buildSessionStatus(SessionModel session) {
+    Color statusColor;
+    String statusText;
+    IconData statusIcon;
+
+    switch (session.status) {
+      case SessionStatus.scheduled:
+        statusColor = Colors.blue;
+        statusText = 'Sắp diễn ra';
+        statusIcon = Icons.schedule;
+      case SessionStatus.ongoing:
+        statusColor = Colors.green;
+        statusText = 'Đang diễn ra';
+        statusIcon = Icons.play_arrow;
+      case SessionStatus.done:
+        statusColor = Colors.grey;
+        statusText = 'Đã kết thúc';
+        statusIcon = Icons.check_circle;
+      case SessionStatus.cancelled:
+        statusColor = Colors.red;
+        statusText = 'Đã hủy';
+        statusIcon = Icons.cancel;
+    }
+
+    // ⭐ THÊM: Hiển thị thông báo đặc biệt
+    if (session.isHappeningNow) {
+      statusColor = Colors.orange;
+      statusText = 'ĐANG DIỄN RA NGAY BÂY GIỜ';
+      statusIcon = Icons.notifications_active;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: statusColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: statusColor.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(statusIcon, size: 16, color: statusColor),
+          const SizedBox(width: 6),
+          Text(
+            statusText,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: statusColor,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
