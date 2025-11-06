@@ -16,81 +16,70 @@ class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   String _getCollectionName<T>() {
-    switch (T) {
-      case UserModel:
-        return 'users';
-      case AttendanceModel:
-        return 'attendances';
-      case ClassModel:
-        return 'classes';
-      case CourseModel:
-        return 'courses';
-      case FaceDataModel:
-        return 'face_data';
-      case SessionModel:
-        return 'sessions';
-      default:
-        throw Exception('Unknown model type: $T');
-    }
+    if (T == UserModel) return 'users';
+    if (T == AttendanceModel) return 'attendances';
+    if (T == ClassModel) return 'classes';
+    if (T == CourseModel) return 'courses';
+    if (T == FaceDataModel) return 'face_data';
+    if (T == SessionModel) return 'sessions';
+    
+    throw Exception('Unknown model type: $T');
   }
 
   /// 🔹 SỬA: Generic method để convert Map → Model
-  T _convertToModel<T>(Map<String, dynamic> data) {
-    final id = data['id']?.toString() ?? '';
-    
-    switch (T) {
-      case UserModel:
-        return UserModel.fromMap(data, id) as T;
-      case AttendanceModel:
-        return AttendanceModel.fromMap(data, id) as T;
-      case ClassModel:
-        return ClassModel.fromMap(data, id) as T;
-      case CourseModel:
-        return CourseModel.fromMap(data, id) as T;
-      case FaceDataModel:
-        return FaceDataModel.fromMap(data, id) as T;
-      case SessionModel:
-        return SessionModel.fromMap(data, id) as T;
-      default:
-        throw Exception('Unknown model type for conversion: $T');
+  T _convertToModel<T extends HasId>(Map<String, dynamic> data, String id) {
+    if (T == UserModel) {
+      return UserModel.fromMap(data, id) as T;
+    } else if (T == AttendanceModel) {
+      return AttendanceModel.fromMap(data, id) as T;
+    } else if (T == ClassModel) {
+      return ClassModel.fromMap(data, id) as T;
+    } else if (T == CourseModel) {
+      return CourseModel.fromMap(data, id) as T;
+    } else if (T == FaceDataModel) {
+      return FaceDataModel.fromMap(data, id) as T;
+    } else if (T == SessionModel) {
+      return SessionModel.fromMap(data, id) as T;
     }
+    
+    throw Exception('Unknown model type for conversion: $T');
   }
 
   /// 🔹 SỬA: Helper method để extract data từ DocumentSnapshot an toàn
   Map<String, dynamic> _extractDataFromDocument(DocumentSnapshot<Object?> doc) {
     final rawData = doc.data();
-    if (rawData == null) return {'id': doc.id};
+    final result = <String, dynamic>{'id': doc.id};
+    
+    if (rawData == null) return result;
     
     if (rawData is Map<String, dynamic>) {
-      return Map<String, dynamic>.from(rawData)..['id'] = doc.id;
+      result.addAll(rawData);
     } else if (rawData is Map<dynamic, dynamic>) {
       // Convert Map<dynamic, dynamic> → Map<String, dynamic>
-      final Map<String, dynamic> convertedData = {};
       rawData.forEach((key, value) {
-        convertedData[key.toString()] = value;
+        result[key.toString()] = value;
       });
-      return convertedData..['id'] = doc.id;
-    } else {
-      throw Exception('Unexpected document data type: ${rawData.runtimeType}');
     }
+    
+    return result;
   }
 
   /// 🔹 SỬA: Helper method cho QueryDocumentSnapshot
   Map<String, dynamic> _extractDataFromQueryDoc(QueryDocumentSnapshot<Object?> doc) {
     final rawData = doc.data();
-    if (rawData == null) return {'id': doc.id};
+    final result = <String, dynamic>{'id': doc.id};
+    
+    if (rawData == null) return result;
     
     if (rawData is Map<String, dynamic>) {
-      return Map<String, dynamic>.from(rawData)..['id'] = doc.id;
+      result.addAll(rawData);
     } else if (rawData is Map<dynamic, dynamic>) {
-      final Map<String, dynamic> convertedData = {};
       rawData.forEach((key, value) {
-        convertedData[key.toString()] = value;
+        result[key.toString()] = value;
       });
-      return convertedData..['id'] = doc.id;
-    } else {
-      throw Exception('Unexpected document data type: ${rawData.runtimeType}');
     }
+    
+    return result;
   }
 
   /// Thêm document vào Firestore
@@ -112,7 +101,7 @@ class FirestoreService {
       if (!doc.exists) return null;
       
       final Map<String, dynamic> data = _extractDataFromDocument(doc);
-      return _convertToModel<T>(data);
+      return _convertToModel<T>(data, id);
     } catch (e) {
       throw Exception('Error getting document: $e');
     }
@@ -126,7 +115,7 @@ class FirestoreService {
       
       return snapshot.docs.map((doc) {
         final Map<String, dynamic> data = _extractDataFromQueryDoc(doc);
-        return _convertToModel<T>(data);
+        return _convertToModel<T>(data, doc.id);
       }).toList();
     } catch (e) {
       throw Exception('Error getting all documents: $e');
@@ -152,44 +141,46 @@ class FirestoreService {
       final collectionName = _getCollectionName<T>();
       Query query = _db.collection(collectionName);
 
-      if (field != null && isEqualTo != null) {
-        query = query.where(field, isEqualTo: isEqualTo);
-      }
-      if (field != null && isNotEqualTo != null) {
-        query = query.where(field, isNotEqualTo: isNotEqualTo);
-      }
-      if (field != null && isLessThan != null) {
-        query = query.where(field, isLessThan: isLessThan);
-      }
-      if (field != null && isLessThanOrEqualTo != null) {
-        query = query.where(field, isLessThanOrEqualTo: isLessThanOrEqualTo);
-      }
-      if (field != null && isGreaterThan != null) {
-        query = query.where(field, isGreaterThan: isGreaterThan);
-      }
-      if (field != null && isGreaterThanOrEqualTo != null) {
-        query = query.where(field, isGreaterThanOrEqualTo: isGreaterThanOrEqualTo);
-      }
-      if (field != null && arrayContains != null) {
-        query = query.where(field, arrayContains: arrayContains);
-      }
-      if (field != null && arrayContainsAny != null) {
-        query = query.where(field, arrayContainsAny: arrayContainsAny);
-      }
-      if (field != null && whereIn != null) {
-        query = query.where(field, whereIn: whereIn);
-      }
-      if (field != null && whereNotIn != null) {
-        query = query.where(field, whereNotIn: whereNotIn);
-      }
-      if (field != null && isNull == true) {
-        query = query.where(field, isNull: true);
+      if (field != null) {
+        if (isEqualTo != null) {
+          query = query.where(field, isEqualTo: isEqualTo);
+        }
+        if (isNotEqualTo != null) {
+          query = query.where(field, isNotEqualTo: isNotEqualTo);
+        }
+        if (isLessThan != null) {
+          query = query.where(field, isLessThan: isLessThan);
+        }
+        if (isLessThanOrEqualTo != null) {
+          query = query.where(field, isLessThanOrEqualTo: isLessThanOrEqualTo);
+        }
+        if (isGreaterThan != null) {
+          query = query.where(field, isGreaterThan: isGreaterThan);
+        }
+        if (isGreaterThanOrEqualTo != null) {
+          query = query.where(field, isGreaterThanOrEqualTo: isGreaterThanOrEqualTo);
+        }
+        if (arrayContains != null) {
+          query = query.where(field, arrayContains: arrayContains);
+        }
+        if (arrayContainsAny != null) {
+          query = query.where(field, arrayContainsAny: arrayContainsAny);
+        }
+        if (whereIn != null) {
+          query = query.where(field, whereIn: whereIn);
+        }
+        if (whereNotIn != null) {
+          query = query.where(field, whereNotIn: whereNotIn);
+        }
+        if (isNull == true) {
+          query = query.where(field, isNull: true);
+        }
       }
 
       final snapshot = await query.get();
       return snapshot.docs.map((doc) {
         final Map<String, dynamic> data = _extractDataFromQueryDoc(doc);
-        return _convertToModel<T>(data);
+        return _convertToModel<T>(data, doc.id);
       }).toList();
     } catch (e) {
       throw Exception('Error querying documents: $e');
@@ -222,7 +213,7 @@ class FirestoreService {
     return _db.collection(collectionName).snapshots().map((snapshot) {
       return snapshot.docs.map((doc) {
         final Map<String, dynamic> data = _extractDataFromQueryDoc(doc);
-        return _convertToModel<T>(data);
+        return _convertToModel<T>(data, doc.id);
       }).toList();
     });
   }
@@ -233,8 +224,74 @@ class FirestoreService {
     return _db.collection(collectionName).doc(id).snapshots().map((doc) {
       if (!doc.exists) return null;
       final Map<String, dynamic> data = _extractDataFromDocument(doc);
-      return _convertToModel<T>(data);
+      return _convertToModel<T>(data, doc.id);
     });
+  }
+
+  /// 🔹 THÊM: Stream query documents với điều kiện
+  Stream<List<T>> watchQueryDocuments<T extends HasId>({
+    String? field,
+    dynamic isEqualTo,
+    dynamic isNotEqualTo,
+    dynamic isLessThan,
+    dynamic isLessThanOrEqualTo,
+    dynamic isGreaterThan,
+    dynamic isGreaterThanOrEqualTo,
+    dynamic arrayContains,
+    List<dynamic>? arrayContainsAny,
+    List<dynamic>? whereIn,
+    List<dynamic>? whereNotIn,
+    bool? isNull,
+  }) {
+    try {
+      final collectionName = _getCollectionName<T>();
+      Query query = _db.collection(collectionName);
+
+      if (field != null) {
+        if (isEqualTo != null) {
+          query = query.where(field, isEqualTo: isEqualTo);
+        }
+        if (isNotEqualTo != null) {
+          query = query.where(field, isNotEqualTo: isNotEqualTo);
+        }
+        if (isLessThan != null) {
+          query = query.where(field, isLessThan: isLessThan);
+        }
+        if (isLessThanOrEqualTo != null) {
+          query = query.where(field, isLessThanOrEqualTo: isLessThanOrEqualTo);
+        }
+        if (isGreaterThan != null) {
+          query = query.where(field, isGreaterThan: isGreaterThan);
+        }
+        if (isGreaterThanOrEqualTo != null) {
+          query = query.where(field, isGreaterThanOrEqualTo: isGreaterThanOrEqualTo);
+        }
+        if (arrayContains != null) {
+          query = query.where(field, arrayContains: arrayContains);
+        }
+        if (arrayContainsAny != null) {
+          query = query.where(field, arrayContainsAny: arrayContainsAny);
+        }
+        if (whereIn != null) {
+          query = query.where(field, whereIn: whereIn);
+        }
+        if (whereNotIn != null) {
+          query = query.where(field, whereNotIn: whereNotIn);
+        }
+        if (isNull == true) {
+          query = query.where(field, isNull: true);
+        }
+      }
+
+      return query.snapshots().map((snapshot) {
+        return snapshot.docs.map((doc) {
+          final Map<String, dynamic> data = _extractDataFromQueryDoc(doc);
+          return _convertToModel<T>(data, doc.id);
+        }).toList();
+      });
+    } catch (e) {
+      throw Exception('Error streaming query documents: $e');
+    }
   }
 
   /// Kiểm tra document tồn tại
@@ -246,10 +303,10 @@ class FirestoreService {
 
   /// Batch write - thêm/update nhiều documents cùng lúc
   Future<void> batchWrite<T extends HasId>(List<T> documents) async {
-    final collectionName = _getCollectionName<T>();
     final batch = _db.batch();
     
     for (final doc in documents) {
+      final collectionName = _getCollectionName<T>();
       final docRef = _db.collection(collectionName).doc(doc.id);
       batch.set(docRef, doc.toMap());
     }
@@ -257,7 +314,7 @@ class FirestoreService {
     await batch.commit();
   }
 
-  /// 🔹 THÊM: Lấy documents với sắp xếp
+  /// 🔹 Lấy documents với sắp xếp
   Future<List<T>> getDocumentsWithOrder<T extends HasId>({
     String? orderByField,
     bool descending = false,
@@ -278,14 +335,14 @@ class FirestoreService {
       final snapshot = await query.get();
       return snapshot.docs.map((doc) {
         final Map<String, dynamic> data = _extractDataFromQueryDoc(doc);
-        return _convertToModel<T>(data);
+        return _convertToModel<T>(data, doc.id);
       }).toList();
     } catch (e) {
       throw Exception('Error getting documents with order: $e');
     }
   }
 
-  /// 🔹 THÊM: Xóa nhiều documents theo điều kiện
+  /// 🔹 Xóa nhiều documents theo điều kiện
   Future<void> deleteDocumentsWhere<T extends HasId>({
     required String field,
     required dynamic value,

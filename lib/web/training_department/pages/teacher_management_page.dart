@@ -89,10 +89,9 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
   // ==================== SỬA GIẢNG VIÊN ====================
   Future<void> _openEditDialog(UserModel teacher) async {
     _tenGvController.text = teacher.name;
-    _khoaController.text = teacher.faculty ?? ''; // 🔹 SỬA: khoa → faculty
+    _khoaController.text = teacher.faculty ?? '';
 
-    // SỬA LỖI: Đảm bảo value luôn có trong danh sách
-    final savedHocVi = teacher.academicTitle; // 🔹 SỬA: hocHamHocVi → academicTitle
+    final savedHocVi = teacher.academicTitle;
     _formHocHamHocVi = _hocHamHocViOptions.contains(savedHocVi)
         ? savedHocVi
         : _hocHamHocViOptions.first;
@@ -172,8 +171,8 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
 
                 final updated = teacher.copyWith(
                   name: _tenGvController.text.trim(),
-                  faculty: _khoaController.text.trim(), // 🔹 SỬA: khoa → faculty
-                  academicTitle: _formHocHamHocVi, // 🔹 SỬA: hocHamHocVi → academicTitle
+                  faculty: _khoaController.text.trim(),
+                  academicTitle: _formHocHamHocVi,
                 );
 
                 try {
@@ -253,81 +252,61 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 1,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Quản lý giảng viên', style: TextStyle(color: kPrimaryBlue, fontWeight: FontWeight.bold, fontSize: 20)),
-            Text(
-              'Quản lý thông tin các giảng viên trong Trường Đại Học Thủy Lợi',
-              style: TextStyle(color: Colors.grey[600], fontSize: 14),
-            ),
-          ],
-        ),
-        actions: [
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.all(30.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          // --- Hàng Tiêu đề ---
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Quản lý giảng viên',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: kPrimaryBlue,
+                    ),
+              ),
+              // Đã bỏ nút "Thêm giảng viên"
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // --- Thanh tìm kiếm ---
           Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: CircleAvatar(
-              backgroundColor: Colors.grey[300],
-              child: const Icon(Icons.person, color: Colors.grey),
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Tìm kiếm theo mã giảng viên hoặc tên...',
+                prefixIcon: const Icon(Icons.search),
+                filled: true,
+                fillColor: Colors.white,
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                  borderSide: const BorderSide(color: Colors.grey),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                  borderSide: const BorderSide(color: kButtonBlue, width: 2),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              ),
             ),
           ),
+          const SizedBox(height: 10),
+
+          // --- Bảng Dữ liệu (DataTable) ---
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _errorMessage != null
+                    ? _buildErrorWidget()
+                    : _buildDataTable(),
+          ),
         ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Tìm kiếm + Thêm
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Tìm kiếm theo mã giảng viên hoặc tên...',
-                      prefixIcon: const Icon(Icons.search),
-                      filled: true,
-                      fillColor: Colors.white,
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(30),
-                        borderSide: const BorderSide(color: Colors.black),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(30),
-                        borderSide: const BorderSide(color: kButtonBlue, width: 2),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-              ],
-            ),
-            const SizedBox(height: 32),
-
-            // Tiêu đề bảng
-            Text(
-              'Danh sách giảng viên',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: kPrimaryBlue),
-            ),
-            const SizedBox(height: 12),
-
-            // Bảng
-            Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _errorMessage != null
-                      ? _buildErrorWidget()
-                      : _buildDataTable(),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -362,68 +341,73 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
       );
     }
 
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                child: DataTable(
-                  headingRowHeight: 56,
-                  dataRowHeight: 64,
-                  headingTextStyle: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: kPrimaryBlue,
-                    fontSize: 14,
+    return SingleChildScrollView(
+      child: SizedBox(
+        width: double.infinity,
+        child: DataTable(
+          headingRowColor:
+              MaterialStateProperty.all(kPrimaryBlue.withOpacity(0.1)),
+          columns: const [
+            DataColumn(
+                label: Text('STT',
+                    style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(
+                label: Text('Mã GV',
+                    style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(
+                label: Text('Tên giảng viên',
+                    style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(
+                label: Text('Khoa',
+                    style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(
+                label: Text('Học hàm',
+                    style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(
+                label: Text('Hành động',
+                    style: TextStyle(fontWeight: FontWeight.bold))),
+          ],
+          rows: _filteredTeachers.asMap().entries.map((entry) {
+            final index = entry.key + 1;
+            final t = entry.value;
+            return DataRow(
+              cells: [
+                DataCell(Text('$index')),
+                DataCell(Text(t.lecturerCode ?? '-')),
+                DataCell(Text(t.name)),
+                DataCell(Text(t.faculty ?? '-')),
+                DataCell(
+                  Chip(
+                    label: Text(
+                      t.academicTitle ?? '-',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    backgroundColor: Colors.grey[200],
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      side: BorderSide.none,
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 2),
                   ),
-                  columnSpacing: 16,
-                  columns: const [
-                    DataColumn(label: Text('STT'), numeric: true),
-                    DataColumn(label: Text('Mã GV')),
-                    DataColumn(label: Text('Tên giảng viên')),
-                    DataColumn(label: Text('Khoa')),
-                    DataColumn(label: Text('Học hàm - học vị')),
-                    DataColumn(label: Text('Thao tác')),
-                  ],
-                  rows: _filteredTeachers.asMap().entries.map((entry) {
-                    final index = entry.key + 1;
-                    final t = entry.value;
-                    return DataRow(
-                      cells: [
-                        DataCell(Text('$index', style: const TextStyle(fontWeight: FontWeight.w600))),
-                        DataCell(Text(t.lecturerCode ?? '-', style: const TextStyle(fontWeight: FontWeight.w500))),
-                        DataCell(Text(t.name, style: const TextStyle(fontSize: 14))),
-                        DataCell(Text(t.faculty ?? '-', style: const TextStyle(fontSize: 14))), // 🔹 SỬA: khoa → faculty
-                        DataCell(Text(t.academicTitle ?? '-', style: const TextStyle(fontSize: 14))), // 🔹 SỬA: hocHamHocVi → academicTitle
-                        DataCell(
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.edit, color: Colors.blue, size: 18),
-                                onPressed: () => _openEditDialog(t),
-                                tooltip: 'Sửa',
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete, color: kDangerRed, size: 18),
-                                onPressed: () => _confirmDelete(t),
-                                tooltip: 'Xóa',
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    );
-                  }).toList(),
                 ),
-              ),
+                DataCell(Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: Colors.blue),
+                      onPressed: () => _openEditDialog(t),
+                      tooltip: 'Sửa',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () => _confirmDelete(t),
+                      tooltip: 'Xóa',
+                    ),
+                  ],
+                )),
+              ],
             );
-          },
+          }).toList(),
         ),
       ),
     );
