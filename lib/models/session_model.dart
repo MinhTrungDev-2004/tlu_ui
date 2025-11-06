@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart'; // ⭐ THÊM IMPORT NÀY
+import 'package:flutter/material.dart';
 import '../../services/firestore_service.dart';
 import 'dart:convert';
 
@@ -8,16 +8,15 @@ class SessionModel implements HasId {
   final String courseId;
   final String classId;
   final DateTime date;
-  final String startTime;          // ⭐ SỬA: String "HH:mm" thay vì TimeOfDay
-  final String endTime;            // ⭐ SỬA: String "HH:mm"
+  final String startTime;
+  final String endTime;
   final String? room;
   final String? lecturerId;
   final List<String>? attendanceIds;
   final SessionStatus status;
   final String? qrCode;
   final DateTime? qrExpiry;
-  
-  // ⭐ THÊM: Thông tin lặp lại
+
   final bool isRecurring;
   final List<int>? repeatDays;        // [1,3,5] = Thứ 2,4,6
   final DateTime? repeatUntil;
@@ -79,7 +78,7 @@ class SessionModel implements HasId {
     return {
       'course_id': courseId,
       'class_id': classId,
-      'date': date.toIso8601String(),
+      'date': Timestamp.fromDate(date), // ⭐ SỬA: Lưu dưới dạng Timestamp
       'start_time': startTime,
       'end_time': endTime,
       if (room != null && room!.isNotEmpty) 'room': room,
@@ -89,10 +88,10 @@ class SessionModel implements HasId {
       if (qrCode != null && qrCode!.isNotEmpty) 'qr_code': qrCode,
       if (qrExpiry != null) 'qr_expiry': qrExpiry!.toIso8601String(),
       'is_recurring': isRecurring,
-      if (repeatDays != null) 'repeat_days': repeatDays,
-      if (repeatUntil != null) 'repeat_until': repeatUntil!.toIso8601String(),
+      if (repeatDays != null) 'repeat_days': repeatDays, 
+      if (repeatUntil != null) 'repeat_until': Timestamp.fromDate(repeatUntil!), // ⭐ SỬA: Lưu dưới dạng Timestamp
       if (parentSessionId != null) 'parent_session_id': parentSessionId,
-      'created_at': createdAt?.toIso8601String() ?? FieldValue.serverTimestamp(),
+      'created_at': createdAt != null ? Timestamp.fromDate(createdAt!) : FieldValue.serverTimestamp(),
       'updated_at': FieldValue.serverTimestamp(),
     };
   }
@@ -144,7 +143,7 @@ class SessionModel implements HasId {
     if (date == null) return DateTime.now();
     if (date is DateTime) return date;
     if (date is String) return DateTime.tryParse(date) ?? DateTime.now();
-    if (date is Timestamp) return date.toDate();
+    if (date is Timestamp) return date.toDate(); // Thêm dòng này nếu chưa có
     return DateTime.now();
   }
 
