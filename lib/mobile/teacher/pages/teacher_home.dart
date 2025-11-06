@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../navigation/app_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
+import '../../../services/teacher/teacher_service.dart';
+import '../../../models/user/user_model.dart';
 
 class TeacherHome extends StatefulWidget {
   const TeacherHome({super.key});
@@ -9,24 +12,37 @@ class TeacherHome extends StatefulWidget {
 }
 
 class _TeacherHomeState extends State<TeacherHome> {
+  final String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // 1. AppBar với thanh tìm kiếm
       appBar: _buildAppBar(),
-
-      // 2. Thân (body) của ứng dụng
-      body: _buildBody(),
-
+      body: currentUserId == null
+          ? const Center(child: Text('Lỗi: Người dùng chưa đăng nhập.'))
+          : FutureBuilder<UserModel?>(
+        future: TeacherService.getTeacherById(currentUserId!),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('Lỗi tải dữ liệu: ${snapshot.error}'));
+          }
+          if (!snapshot.hasData || snapshot.data == null) {
+            return const Center(child: Text('Không tìm thấy người dùng.'));
+          }
+          final user = snapshot.data!;
+          return _buildBody(user);
+        },
+      ),
     );
   }
 
-  /// 1. Widget cho AppBar (Thanh tìm kiếm)
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       backgroundColor: Colors.white,
-      elevation: 0, // Bỏ bóng mờ
+      elevation: 0,
       title: Container(
         height: 40,
         decoration: BoxDecoration(
@@ -38,67 +54,64 @@ class _TeacherHomeState extends State<TeacherHome> {
             prefixIcon: Icon(Icons.search, color: Colors.grey),
             hintText: 'Tìm kiếm lớp học phần...',
             hintStyle: TextStyle(color: Colors.grey),
-            border: InputBorder.none, // Bỏ đường viền
+            border: InputBorder.none,
             contentPadding: EdgeInsets.symmetric(vertical: 10.0),
           ),
         ),
       ),
     );
   }
-
-  /// 2. Widget cho Thân (Body)
-  Widget _buildBody() {
-    // SingleChildScrollView cho phép cuộn khi nội dung quá dài
+  Widget _buildBody(UserModel user) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0), // Thêm padding xung quanh
+      padding: const EdgeInsets.all(16.0),
       child: Column(
         children: [
-          _buildWelcomeCard(),
+          _buildWelcomeCard(user),
           const SizedBox(height: 20),
           _buildNotificationCard(),
           const SizedBox(height: 20),
-          _buildScheduleCard(),
+          _buildScheduleCard(user),
         ],
       ),
     );
   }
+  Widget _buildWelcomeCard(UserModel user) {
+    final String today = DateFormat('dd/MM/yyyy').format(DateTime.now());
 
-  /// 2a. Card Chào mừng (Xin chào, Nguyễn Văn A!)
-  Widget _buildWelcomeCard() {
     return Container(
       padding: const EdgeInsets.all(20.0),
       decoration: BoxDecoration(
-        color: Colors.blue, // Màu nền xanh
-        borderRadius: BorderRadius.circular(15.0), // Bo góc
+        color: Colors.blue,
+        borderRadius: BorderRadius.circular(15.0),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               Text(
-                'Xin chào, Nguyễn Văn A!',
-                style: TextStyle(
+                'Xin chào, ${user.name}!',
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              SizedBox(height: 5),
-              Text(
+              const SizedBox(height: 5),
+              const Text(
                 'Chúc bạn ngày làm việc hiệu quả',
                 style: TextStyle(
-                  color: Colors.white70, // Màu trắng mờ
+                  color: Colors.white70,
                   fontSize: 14,
                 ),
               ),
             ],
           ),
-          const Text(
-            'Hôm nay\n30/07/2025',
+          Text(
+            'Hôm nay\n$today',
             textAlign: TextAlign.right,
-            style: TextStyle(
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -109,14 +122,15 @@ class _TeacherHomeState extends State<TeacherHome> {
     );
   }
 
-  /// 2b. Card Thông báo mới
+  /// 2b. Card Thông báo mới (Giữ nguyên, vì đây là dữ liệu khác)
   Widget _buildNotificationCard() {
+    // ... (Không thay đổi) ...
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(15.0),
-        boxShadow: [ // Thêm bóng mờ nhẹ
+        boxShadow: [
           BoxShadow(
             color: Colors.grey.withValues(alpha: 0.1),
             spreadRadius: 1,
@@ -127,7 +141,6 @@ class _TeacherHomeState extends State<TeacherHome> {
       ),
       child: Column(
         children: [
-          // Tiêu đề card (Thông báo mới - Xem tất cả)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -151,11 +164,10 @@ class _TeacherHomeState extends State<TeacherHome> {
             ],
           ),
           const SizedBox(height: 10),
-          // Nội dung thông báo
           Container(
             padding: const EdgeInsets.all(12.0),
             decoration: BoxDecoration(
-              color: Colors.grey[100], // Nền màu xám nhạt
+              color: Colors.grey[100],
               borderRadius: BorderRadius.circular(10.0),
             ),
             child: Column(
@@ -183,9 +195,7 @@ class _TeacherHomeState extends State<TeacherHome> {
       ),
     );
   }
-
-  /// 2c. Card Lịch giảng dạy
-  Widget _buildScheduleCard() {
+  Widget _buildScheduleCard(UserModel user) {
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
@@ -202,7 +212,6 @@ class _TeacherHomeState extends State<TeacherHome> {
       ),
       child: Column(
         children: [
-          // Tiêu đề card (Lịch giảng dạy - Xem tất cả)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -226,18 +235,16 @@ class _TeacherHomeState extends State<TeacherHome> {
             ],
           ),
           const SizedBox(height: 15),
-          // Chi tiết lớp học
-          _buildScheduleItem(),
+          _buildScheduleItem(user),
           const SizedBox(height: 15),
-          // Nút "Tạo QR Điểm Danh"
+
           SizedBox(
-            width: double.infinity, // Nút rộng tối đa
+            width: double.infinity,
             child: ElevatedButton(
               onPressed: () {
-                Navigator.pushNamed(context, AppRouter.qrAttendanceRoute);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue, // Nền màu xanh
+                backgroundColor: Colors.blue,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
@@ -255,7 +262,6 @@ class _TeacherHomeState extends State<TeacherHome> {
             ),
           ),
           const SizedBox(height: 10),
-          // Nút "Còn 5 lớp học nữa"
           SizedBox(
             width: double.infinity,
             child: TextButton(
@@ -290,8 +296,7 @@ class _TeacherHomeState extends State<TeacherHome> {
     );
   }
 
-  /// Widget con cho chi tiết một lớp học
-  Widget _buildScheduleItem() {
+  Widget _buildScheduleItem(UserModel user) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -311,7 +316,7 @@ class _TeacherHomeState extends State<TeacherHome> {
               const SizedBox(height: 5),
               _buildInfoRow(Icons.access_time_outlined, '07:00 - 09:30   TC-201'),
               const SizedBox(height: 5),
-              _buildInfoRow(Icons.person_outline, 'Giảng viên: TS. Nguyễn Văn A'),
+              _buildInfoRow(Icons.person_outline, 'Giảng viên: ${user.name}'),
               const SizedBox(height: 5),
               _buildInfoRow(Icons.label_outline, 'Chủ đề: Chương 3: Thiết kế CSDL quan hệ'),
             ],
@@ -321,8 +326,8 @@ class _TeacherHomeState extends State<TeacherHome> {
     );
   }
 
-  /// Widget con tái sử dụng cho các dòng thông tin (icon + text)
   Widget _buildInfoRow(IconData icon, String text) {
+    // ... (Không thay đổi) ...
     return Row(
       children: [
         Icon(icon, size: 16, color: Colors.grey[600]),
@@ -339,7 +344,4 @@ class _TeacherHomeState extends State<TeacherHome> {
       ],
     );
   }
-
-/// 3. Widget cho Bottom Navigation Bar
-
 }

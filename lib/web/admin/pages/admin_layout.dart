@@ -19,7 +19,7 @@ class _AdminLayoutState extends State<AdminLayout> {
 
   final List<Widget> pages = const [
     HomePage(),
-    UsersPage(),
+    // UsersPage(),
     ConfigPage(), // Cấu hình
     PermissionsPage(),
     StatisticsPage(),
