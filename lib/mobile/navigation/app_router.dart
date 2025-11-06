@@ -5,8 +5,9 @@ import '../../auth/login_page.dart';
 import '../../auth/splash_screen.dart';
 import '../../web/training_department/pages/training_department_home.dart';
 import '../../web/admin/pages/home_page.dart';
-import '../../mobile/student/pages/student_home.dart';
+import '../../mobile/student/pages/home_page/home_screen.dart';
 import '../../web/supervisor/pages/supervisor_home.dart';
+import '../student/pages/register_face/register_face_screen.dart'; // 🔹 THÊM IMPORT
 
 class AppRouter {
   static const String splashRoute = '/';
@@ -17,6 +18,7 @@ class AppRouter {
   static const String adminRoute = '/admin';
   static const String studentRoute = '/student';
   static const String supervisorRoute = '/supervisor';
+  static const String faceRegistrationRoute = '/face-registration'; // 🔹 THÊM ROUTE MỚI
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -47,7 +49,7 @@ class AppRouter {
         );
       case studentRoute:
         return MaterialPageRoute(
-          builder: (_) => const StudentHome(),
+          builder: (_) => const HomeScreen(),
           settings: settings,
         );
       case supervisorRoute:
@@ -58,6 +60,12 @@ class AppRouter {
       case loginRoute:
         return MaterialPageRoute(
           builder: (_) => const LoginPage(),
+          settings: settings,
+        );
+      case faceRegistrationRoute: // 🔹 THÊM CASE MỚI
+        final studentId = settings.arguments as String?;
+        return MaterialPageRoute(
+          builder: (_) => RegisterFaceScreen(userId: studentId),
           settings: settings,
         );
       default:

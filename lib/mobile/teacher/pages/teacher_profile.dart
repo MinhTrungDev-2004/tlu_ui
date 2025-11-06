@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 import '../../navigation/navigation_service.dart';
 import '../../navigation/role_manager.dart';
+import '../../../services/teacher/teacher_service.dart';
+import '../../../models/user/user_model.dart';
 
 class TeacherProfile extends StatelessWidget {
   const TeacherProfile({super.key});
@@ -11,11 +15,11 @@ class TeacherProfile extends StatelessWidget {
       appBar: _buildAppBar(),
       body: _buildBody(context),
       backgroundColor: const Color(0xFFF4F6F8), // Màu nền xám nhạt
-      // Chú ý: KHÔNG có bottomNavigationBar ở đây
+      // KHÔNG có bottomNavigationBar
     );
   }
 
-  /// 1. Widget cho AppBar
+  /// 1) AppBar: giữ nguyên UI
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       backgroundColor: Colors.blue,
@@ -31,51 +35,98 @@ class TeacherProfile extends StatelessWidget {
     );
   }
 
-  /// 2. Widget cho Thân (Body)
+  /// 2) Body: giữ bố cục cũ, chỉ thay header thành dữ liệu thật
   Widget _buildBody(BuildContext context) {
-    return SingleChildScrollView(
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center, // Căn giữa
-          children: [
-            // 1. Phần thông tin (Avatar, Tên, MGV)
-            _buildProfileHeader(),
-            const SizedBox(height: 32),
-            // 2. Phần danh sách chức năng (bọc trong Card)
-            _buildActionList(context),
-          ],
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
+    if (uid == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24.0),
+          child: Text('Lỗi: Người dùng chưa đăng nhập.'),
         ),
-      ),
+      );
+    }
+
+    return FutureBuilder<UserModel?>(
+      future: TeacherService.getTeacherById(uid),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24.0),
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Text('Lỗi tải dữ liệu: ${snapshot.error}'),
+            ),
+          );
+        }
+        final user = snapshot.data;
+        if (user == null) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24.0),
+              child: Text('Không tìm thấy thông tin giảng viên.'),
+            ),
+          );
+        }
+
+        return SingleChildScrollView(
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center, // Căn giữa
+              children: [
+                _buildProfileHeader(user), // ⭐ header dữ liệu thật
+                const SizedBox(height: 32),
+                _buildActionList(context),  // danh sách chức năng
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
-  /// 2a. Widget cho Header (Avatar, Tên)
-  Widget _buildProfileHeader() {
+  /// Header: avatar + tên + MGV (giữ nguyên UI)
+  Widget _buildProfileHeader(UserModel user) {
+    final initials =
+        (user.name.isNotEmpty ? user.name.trim()[0] : '?').toUpperCase();
+
     return Column(
       children: [
         CircleAvatar(
-          radius: 50, // Kích thước avatar
+          radius: 50,
           backgroundColor: Colors.grey.shade300,
-          // Bạn có thể thay bằng NetworkImage nếu có link ảnh
-          child: Icon(
-            Icons.person,
-            size: 60,
-            color: Colors.grey.shade600,
+          // Nếu có ảnh đại diện: dùng backgroundImage: NetworkImage(url)
+          child: Text(
+            initials,
+            style: TextStyle(
+              fontSize: 48,
+              color: Colors.grey.shade700,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
         const SizedBox(height: 16),
-        const Text(
-          'Ngô Minh Trung',
-          style: TextStyle(
+        Text(
+          user.name,
+          style: const TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
           ),
         ),
         const SizedBox(height: 8),
         Text(
-          'MGV: 2251172533',
+          // Nếu có field riêng (maGV/teacherCode), thay user.id bằng field đó
+          'MGV: ${user.lecturerCode}',
           style: TextStyle(
             fontSize: 16,
             color: Colors.grey.shade700,
@@ -85,16 +136,15 @@ class TeacherProfile extends StatelessWidget {
     );
   }
 
-  /// 2b. Widget cho danh sách các chức năng
+  /// Danh sách chức năng (giữ nguyên UI)
   Widget _buildActionList(BuildContext context) {
-    // Dùng Card để có nền trắng và bo góc
     return Card(
       elevation: 0,
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10.0),
       ),
-      clipBehavior: Clip.antiAlias, // Để bo góc các ListTile bên trong
+      clipBehavior: Clip.antiAlias, // Bo góc các ListTile bên trong
       child: Column(
         children: [
           _buildMenuItem(
@@ -129,8 +179,13 @@ class TeacherProfile extends StatelessWidget {
             context,
             icon: Icons.logout,
             title: 'Đăng xuất',
-            onTap: () {
-              // Đăng xuất và quay về trang login
+            onTap: () async {
+              // (tuỳ chọn) sign out Firebase
+              try {
+                await FirebaseAuth.instance.signOut();
+              } catch (_) {}
+
+              // Giữ nguyên điều hướng theo role như bạn đang dùng
               RoleManager.setRole(UserRole.guest);
               NavigationService.navigateToRole(UserRole.guest);
             },
@@ -140,13 +195,13 @@ class TeacherProfile extends StatelessWidget {
     );
   }
 
-  /// 2c. Widget con (tái sử dụng) cho mỗi mục trong danh sách
+  /// Item trong danh sách (giữ nguyên UI)
   Widget _buildMenuItem(
-      BuildContext context, {
-        required IconData icon,
-        required String title,
-        required VoidCallback onTap,
-      }) {
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
     return ListTile(
       leading: Icon(icon, color: Colors.grey.shade700),
       title: Text(

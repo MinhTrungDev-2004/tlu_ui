@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth/auth_service.dart';
 import '../services/auth/user_service.dart';
+import '../services/student/student_service.dart'; // 🔹 THÊM IMPORT
 import '../mobile/navigation/app_router.dart';
 
 class LoginPageMobile extends StatefulWidget {
@@ -14,6 +15,7 @@ class _LoginPageMobileState extends State<LoginPageMobile> {
   final _formKey = GlobalKey<FormState>();
   final _accountController = TextEditingController();
   final _passwordController = TextEditingController();
+
   bool _obscurePassword = true;
   bool _isLoading = false;
 
@@ -24,16 +26,12 @@ class _LoginPageMobileState extends State<LoginPageMobile> {
     super.dispose();
   }
 
-  void _handleLogin() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+  Future<void> _handleLogin() async {
+    if (!_formKey.currentState!.validate()) return;
 
-    // Lấy thông tin đăng nhập
     final email = _accountController.text.trim();
     final password = _passwordController.text.trim();
 
-    // Kiểm tra thông tin đăng nhập
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -44,81 +42,80 @@ class _LoginPageMobileState extends State<LoginPageMobile> {
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
-      // Đăng nhập với Firebase Authentication
+      // Đăng nhập bằng Firebase Authentication
       final userCredential = await AuthService.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
 
       if (userCredential?.user != null) {
-        // Khởi tạo thông tin user và role
+        // Lấy role người dùng sau khi đăng nhập
         final userRole = await UserService.initializeUser();
-        
-        if (userRole == null) {
-          throw Exception('Không thể xác định role của user');
-        }
+        if (userRole == null) throw Exception('Không thể xác định role của người dùng');
 
-        setState(() {
-          _isLoading = false;
-        });
+        if (!mounted) return;
 
-        // Hiển thị thông báo đăng nhập thành công
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Đăng nhập thành công! Chào mừng ${UserService.displayName}'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-
-        // Điều hướng dựa trên role
-        if (mounted) {
-          if (userRole == UserRole.teacher) {
-            // Teacher sử dụng giao diện mobile
-            Navigator.pushReplacementNamed(context, AppRouter.teacherRoute);
-          } else if (userRole == UserRole.trainingDepartment) {
-            // Training Department sử dụng giao diện web
-            Navigator.pushReplacementNamed(context, AppRouter.trainingDepartmentRoute);
-          } else if (userRole == UserRole.admin) {
-            // Admin sử dụng giao diện web
-            Navigator.pushReplacementNamed(context, AppRouter.adminRoute);
-          } else if (userRole == UserRole.student) {
-            // Student sử dụng giao diện mobile
-            Navigator.pushReplacementNamed(context, AppRouter.studentRoute);
-          } else if (userRole == UserRole.supervisor) {
-            // Supervisor sử dụng giao diện web
-            Navigator.pushReplacementNamed(context, AppRouter.supervisorRoute);
-          } else {
-            // Role không hợp lệ
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Tài khoản hoặc mật khẩu không hợp lệ'),
-                backgroundColor: Colors.red,
-              ),
+        // 🔹 KIỂM TRA NẾU LÀ STUDENT VÀ CHƯA ĐĂNG KÝ KHUÔN MẶT
+        if (userRole == UserRole.student) {
+          final studentId = userCredential!.user!.uid;
+          final hasRegisteredFace = await StudentService().hasRegisteredFace(studentId);
+          
+          if (!hasRegisteredFace) {
+            // 🔹 CHƯA ĐĂNG KÝ KHUÔN MẶT - ĐIỀU HƯỚNG ĐẾN TRANG ĐĂNG KÝ
+            Navigator.pushReplacementNamed(
+              context, 
+              AppRouter.faceRegistrationRoute,
+              arguments: studentId, // Truyền studentId để đăng ký
             );
             return;
           }
         }
+
+        // 🔹 ĐÃ ĐĂNG KÝ KHUÔN MẶT HOẶC KHÔNG PHẢI STUDENT - ĐIỀU HƯỚNG VỀ TRANG CHỦ
+        _navigateToHomePage(userRole);
       }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Lỗi đăng nhập: $e'),
+            content: Text('Lỗi đăng nhập: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
       }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // 🔹 HÀM ĐIỀU HƯỚNG VỀ TRANG CHỦ THEO ROLE
+  void _navigateToHomePage(UserRole userRole) {
+    switch (userRole) {
+      case UserRole.admin:
+        Navigator.pushReplacementNamed(context, AppRouter.adminRoute);
+        break;
+      case UserRole.trainingDepartment:
+        Navigator.pushReplacementNamed(context, AppRouter.trainingDepartmentRoute);
+        break;
+      case UserRole.teacher:
+        Navigator.pushReplacementNamed(context, AppRouter.teacherRoute);
+        break;
+      case UserRole.student:
+        Navigator.pushReplacementNamed(context, AppRouter.studentRoute);
+        break;
+      case UserRole.supervisor:
+        Navigator.pushReplacementNamed(context, AppRouter.supervisorRoute);
+        break;
+      default:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tài khoản không hợp lệ.'),
+            backgroundColor: Colors.red,
+          ),
+        );
     }
   }
 
@@ -137,24 +134,19 @@ class _LoginPageMobileState extends State<LoginPageMobile> {
               children: [
                 const SizedBox(height: 40),
 
-                // Graduation cap icon
+                // Biểu tượng logo
                 Container(
-                  width: 80,
-                  height: 80,
+                  width: 90,
+                  height: 90,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF2196F3),
-                    borderRadius: BorderRadius.circular(40),
+                    color: const Color(0xFF1470E2),
+                    borderRadius: BorderRadius.circular(45),
                   ),
-                  child: const Icon(
-                    Icons.school,
-                    color: Colors.white,
-                    size: 40,
-                  ),
+                  child: const Icon(Icons.school, color: Colors.white, size: 48),
                 ),
 
                 const SizedBox(height: 32),
 
-                // Title
                 const Text(
                   'Đăng nhập',
                   style: TextStyle(
@@ -166,7 +158,7 @@ class _LoginPageMobileState extends State<LoginPageMobile> {
 
                 const SizedBox(height: 48),
 
-                // Email input field
+                // Email
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -185,35 +177,18 @@ class _LoginPageMobileState extends State<LoginPageMobile> {
                       textInputAction: TextInputAction.next,
                       decoration: InputDecoration(
                         hintText: 'Nhập email của bạn',
-                        hintStyle: TextStyle(
-                          color: Colors.grey[400],
-                          fontSize: 16,
-                        ),
-                        prefixIcon: const Icon(
-                          Icons.email_outlined,
-                          color: Color(0xFF2196F3),
-                        ),
+                        hintStyle: TextStyle(color: Colors.grey[400]),
+                        prefixIcon: const Icon(Icons.email_outlined, color: Color(0xFF1470E2)),
                         enabledBorder: const UnderlineInputBorder(
-                          borderSide: BorderSide(
-                            color: Color(0xFF2196F3),
-                            width: 1.5,
-                          ),
+                          borderSide: BorderSide(color: Color(0xFF1470E2), width: 1.5),
                         ),
                         focusedBorder: const UnderlineInputBorder(
-                          borderSide: BorderSide(
-                            color: Color(0xFF2196F3),
-                            width: 2.0,
-                          ),
+                          borderSide: BorderSide(color: Color(0xFF1470E2), width: 2.0),
                         ),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 16),
                       ),
                       validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Vui lòng nhập email';
-                        }
-                        if (!value.contains('@')) {
-                          return 'Email không hợp lệ';
-                        }
+                        if (value == null || value.isEmpty) return 'Vui lòng nhập email';
+                        if (!value.contains('@')) return 'Email không hợp lệ';
                         return null;
                       },
                     ),
@@ -222,7 +197,7 @@ class _LoginPageMobileState extends State<LoginPageMobile> {
 
                 const SizedBox(height: 24),
 
-                // Password input field
+                // Password
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -241,46 +216,27 @@ class _LoginPageMobileState extends State<LoginPageMobile> {
                       textInputAction: TextInputAction.done,
                       decoration: InputDecoration(
                         hintText: 'Nhập mật khẩu',
-                        hintStyle: TextStyle(
-                          color: Colors.grey[400],
-                          fontSize: 16,
-                        ),
-                        prefixIcon: const Icon(
-                          Icons.lock_outline,
-                          color: Color(0xFF2196F3),
-                        ),
+                        hintStyle: TextStyle(color: Colors.grey[400]),
+                        prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF1470E2)),
                         suffixIcon: IconButton(
                           icon: Icon(
                             _obscurePassword ? Icons.visibility : Icons.visibility_off,
                             color: Colors.grey[600],
                           ),
-                          onPressed: () {
-                            setState(() {
-                              _obscurePassword = !_obscurePassword;
-                            });
-                          },
+                          onPressed: () => setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          }),
                         ),
                         enabledBorder: const UnderlineInputBorder(
-                          borderSide: BorderSide(
-                            color: Color(0xFF2196F3),
-                            width: 1.5,
-                          ),
+                          borderSide: BorderSide(color: Color(0xFF1470E2), width: 1.5),
                         ),
                         focusedBorder: const UnderlineInputBorder(
-                          borderSide: BorderSide(
-                            color: Color(0xFF2196F3),
-                            width: 2.0,
-                          ),
+                          borderSide: BorderSide(color: Color(0xFF1470E2), width: 2.0),
                         ),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 16),
                       ),
                       validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Vui lòng nhập mật khẩu';
-                        }
-                        if (value.length < 6) {
-                          return 'Mật khẩu phải có ít nhất 6 ký tự';
-                        }
+                        if (value == null || value.isEmpty) return 'Vui lòng nhập mật khẩu';
+                        if (value.length < 6) return 'Mật khẩu phải có ít nhất 6 ký tự';
                         return null;
                       },
                     ),
@@ -289,22 +245,20 @@ class _LoginPageMobileState extends State<LoginPageMobile> {
 
                 const SizedBox(height: 16),
 
-                // Forgot password link
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
                     onPressed: () {
-                      // TODO: Implement forgot password
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('Tính năng quên mật khẩu sẽ được phát triển'),
+                          content: Text('Tính năng quên mật khẩu đang được phát triển.'),
                         ),
                       );
                     },
                     child: const Text(
                       'Quên mật khẩu?',
                       style: TextStyle(
-                        color: Color(0xFF2196F3),
+                        color: Color(0xFF1470E2),
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
@@ -314,16 +268,15 @@ class _LoginPageMobileState extends State<LoginPageMobile> {
 
                 const SizedBox(height: 32),
 
-                // Login button
+                // Nút đăng nhập
                 SizedBox(
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _handleLogin,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2196F3),
+                      backgroundColor: const Color(0xFF1470E2),
                       foregroundColor: Colors.white,
-                      elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -332,23 +285,17 @@ class _LoginPageMobileState extends State<LoginPageMobile> {
                         ? const SizedBox(
                             width: 24,
                             height: 24,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
-                            ),
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                           )
                         : const Text(
                             'Đăng nhập',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                           ),
                   ),
                 ),
+
                 const SizedBox(height: 24),
-                // Thêm padding bottom để tránh bị che bởi bàn phím
-                SizedBox(height: MediaQuery.of(context).viewInsets.bottom + 20),
+                SizedBox(height: MediaQuery.of(context).viewInsets.bottom + 10),
               ],
             ),
           ),
