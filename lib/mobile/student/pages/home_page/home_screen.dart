@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'home_menu.dart';
 import '../scan_qr/scan_qr_screen.dart';
 import '../user_information/user_screen.dart';
-import '../register_face/widgets/main_appbar.dart'; //  Dùng AppBar chung
+import '../register_face/widgets/main_appbar.dart';
+import 'list_class.dart';
+import '../../../../services/student/class_service.dart';
+import '../../../../models/session_model.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,12 +19,78 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
+  final DateTime _selectedDate = DateTime.now();
+  final ClassService _classService = ClassService();
+  
+  String? _studentId; // Thay vì cứng studentId
+  List<SessionModel> _todaySessions = [];
+  bool _isLoading = true;
 
-  final List<Widget> _pages = const [
-    _HomeContent(),
-    SizedBox(),
-    PersonalPage(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _getCurrentUserAndLoadSessions();
+  }
+
+  Future<void> _getCurrentUserAndLoadSessions() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Lấy user hiện tại từ Firebase Auth
+      final User? user = FirebaseAuth.instance.currentUser;
+      
+      if (user != null) {
+        _studentId = user.uid; // Sử dụng UID thực tế
+        print('👤 User UID: $_studentId');
+        
+        await _loadTodaySessions();
+      } else {
+        print('❌ Không có user đăng nhập');
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('❌ Lỗi khi lấy user: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadTodaySessions() async {
+    if (_studentId == null) {
+      print('❌ StudentId null, không thể load sessions');
+      setState(() {
+        _isLoading = false;
+      });
+      return;
+    }
+
+    try {
+      print('🔄 Đang load sessions cho student: $_studentId');
+      
+      final sessions = await _classService.getStudentSessionsByDate(
+        studentId: _studentId!,
+        date: _selectedDate,
+      );
+      
+      print('✅ Load được ${sessions.length} sessions');
+      
+      setState(() {
+        _todaySessions = sessions;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('❌ Error loading sessions: $e');
+      setState(() {
+        _isLoading = false;
+        _todaySessions = [];
+      });
+    }
+  }
 
   void _onItemTapped(int index) {
     if (index == 1) {
@@ -34,13 +105,37 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  @override
-  void initState() {
-    super.initState();
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-    ));
+  Future<void> _refreshSessions() async {
+    await _loadTodaySessions();
+  }
+
+  // Xóa didChangeDependencies và build pages trong build method
+  List<Widget> get _pages {
+    return [
+      _buildHomeContent(),
+      const SizedBox(),
+      const PersonalPage(),
+    ];
+  }
+
+  Widget _buildHomeContent() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    
+    if (_todaySessions.isEmpty) {
+      return const Center(
+        child: Text(
+          'Hôm nay bạn không có lịch học nào.',
+          style: TextStyle(color: Colors.grey, fontSize: 16),
+        ),
+      );
+    }
+    
+    return ListClassScreen(
+      sessions: _todaySessions,
+      selectedDate: _selectedDate,
+    );
   }
 
   @override
@@ -49,22 +144,23 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: Colors.grey[50],
       drawer: const HomeMenu(),
 
-      // ✅ Dùng AppBar thống nhất
       appBar: buildMainAppBar(
         context: context,
         title: _selectedIndex == 0
-            ? 'Trang chủ'
+            ? 'Lớp học'
             : _selectedIndex == 2
                 ? 'Cá nhân'
                 : '',
-        showBack: false, //  Trang chủ không có nút back
-       
+        showBack: false,
       ),
 
-      // === Nội dung chính ===
-      body: _pages[_selectedIndex],
+      body: _selectedIndex == 0
+          ? RefreshIndicator(
+              onRefresh: _refreshSessions,
+              child: _buildHomeContent(),
+            )
+          : _pages[_selectedIndex],
 
-      // === Thanh điều hướng dưới cùng ===
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -79,7 +175,7 @@ class _HomeScreenState extends State<HomeScreen> {
             items: const [
               BottomNavigationBarItem(
                 icon: Icon(Icons.home_outlined),
-                label: 'Trang chủ',
+                label: 'Lớp học',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.qr_code_scanner_outlined),
@@ -92,21 +188,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ],
-      ),
-    );
-  }
-}
-
-// === Nội dung trang "Trang chủ" ===
-class _HomeContent extends StatelessWidget {
-  const _HomeContent();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Text(
-        'Hôm nay bạn không có lịch học nào.',
-        style: TextStyle(color: Colors.grey, fontSize: 16),
       ),
     );
   }

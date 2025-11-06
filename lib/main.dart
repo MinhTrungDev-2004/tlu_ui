@@ -19,7 +19,7 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  //await MockDataGenerator().seedData();
+  await MockDataGenerator().seedData();
   runApp(const MyApp());
 }
 
