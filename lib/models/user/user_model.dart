@@ -176,7 +176,6 @@ class UserModel implements HasId {
     );
   }
 
-  /// ✅ Getter tiện ích
   bool get isStudent => role == 'student';
   bool get isLecturer => role == 'teacher';
   bool get isPDT => role == 'pdt';

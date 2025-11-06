@@ -14,12 +14,10 @@ class TeacherProfile extends StatelessWidget {
     return Scaffold(
       appBar: _buildAppBar(),
       body: _buildBody(context),
-      backgroundColor: const Color(0xFFF4F6F8), // Màu nền xám nhạt
-      // KHÔNG có bottomNavigationBar
+      backgroundColor: const Color(0xFFF4F6F8),
     );
   }
 
-  /// 1) AppBar: giữ nguyên UI
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       backgroundColor: Colors.blue,
@@ -35,7 +33,6 @@ class TeacherProfile extends StatelessWidget {
     );
   }
 
-  /// 2) Body: giữ bố cục cũ, chỉ thay header thành dữ liệu thật
   Widget _buildBody(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
 
@@ -82,11 +79,11 @@ class TeacherProfile extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center, // Căn giữa
+              crossAxisAlignment: CrossAxisAlignment.center, 
               children: [
-                _buildProfileHeader(user), // ⭐ header dữ liệu thật
+                _buildProfileHeader(user), 
                 const SizedBox(height: 32),
-                _buildActionList(context),  // danh sách chức năng
+                _buildActionList(context),  
               ],
             ),
           ),
@@ -94,8 +91,6 @@ class TeacherProfile extends StatelessWidget {
       },
     );
   }
-
-  /// Header: avatar + tên + MGV (giữ nguyên UI)
   Widget _buildProfileHeader(UserModel user) {
     final initials =
         (user.name.isNotEmpty ? user.name.trim()[0] : '?').toUpperCase();
@@ -105,7 +100,6 @@ class TeacherProfile extends StatelessWidget {
         CircleAvatar(
           radius: 50,
           backgroundColor: Colors.grey.shade300,
-          // Nếu có ảnh đại diện: dùng backgroundImage: NetworkImage(url)
           child: Text(
             initials,
             style: TextStyle(
@@ -123,20 +117,10 @@ class TeacherProfile extends StatelessWidget {
             fontWeight: FontWeight.bold,
           ),
         ),
-        const SizedBox(height: 8),
-        Text(
-          // Nếu có field riêng (maGV/teacherCode), thay user.id bằng field đó
-          'MGV: ${user.lecturerCode}',
-          style: TextStyle(
-            fontSize: 16,
-            color: Colors.grey.shade700,
-          ),
-        ),
       ],
     );
   }
 
-  /// Danh sách chức năng (giữ nguyên UI)
   Widget _buildActionList(BuildContext context) {
     return Card(
       elevation: 0,
@@ -144,7 +128,7 @@ class TeacherProfile extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10.0),
       ),
-      clipBehavior: Clip.antiAlias, // Bo góc các ListTile bên trong
+      clipBehavior: Clip.antiAlias, 
       child: Column(
         children: [
           _buildMenuItem(
@@ -195,7 +179,6 @@ class TeacherProfile extends StatelessWidget {
     );
   }
 
-  /// Item trong danh sách (giữ nguyên UI)
   Widget _buildMenuItem(
     BuildContext context, {
     required IconData icon,

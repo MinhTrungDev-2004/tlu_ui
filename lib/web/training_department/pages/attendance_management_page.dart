@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
 
-// Import hằng số màu của bạn
 const Color kPrimaryBlue = Color(0xFF19325B);
 
-// 1. Data Model cho một Lớp học đã diễn ra
 class ClassSessionSummary {
   final String subjectName;
   final String className;
   final String lecturerName;
-  final String department; // Khoa
-  final String major; // Ngành
+  final String department;
+  final String major;
   final DateTime date;
   final int totalStudents;
   final int presentCount;
@@ -29,7 +27,7 @@ class ClassSessionSummary {
   double get attendanceRate => presentCount / totalStudents;
 }
 
-// 2. Widget chính của trang
+
 class AttendanceManagementPage extends StatefulWidget {
   const AttendanceManagementPage({super.key});
 
@@ -39,7 +37,6 @@ class AttendanceManagementPage extends StatefulWidget {
 }
 
 class _AttendanceManagementPageState extends State<AttendanceManagementPage> {
-  // 3. Dữ liệu mẫu (mock data)
   final List<ClassSessionSummary> _allSessions = [
     ClassSessionSummary(
       subjectName: 'Công nghệ phần mềm',
@@ -83,15 +80,11 @@ class _AttendanceManagementPageState extends State<AttendanceManagementPage> {
     ),
   ];
 
-  // Biến cho các bộ lọc
-  String? _selectedDepartment; // Lọc theo Khoa
-  String? _selectedClass; // Lọc theo Lớp
+  String? _selectedDepartment; 
+  String? _selectedClass;
   DateTime? _selectedDate;
 
-  // 4. Hàm xử lý các hành động
   void _viewDetails(ClassSessionSummary session) {
-    // Trong ứng dụng thật, bạn sẽ mở một Dialog hoặc trang mới
-    // để hiển thị danh sách sinh viên của buổi học này.
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
           content: Text(
