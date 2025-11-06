@@ -2,16 +2,15 @@ import '../../services/firestore_service.dart';
 
 class ClassModel implements HasId {
   final String _id;
-  final String name;
-  final String courseId;
-  final String lecturerId;
+  final String name; // "CNTT-01 K62"
+  final String? departmentId; // "CNTT" - Khoa quản lý
+  final String? headTeacherId; // ⭐ THÊM: GV chủ nhiệm lớp
   
-  // ===== bổ sung =====
-  final String? departmentId;       // Khoa / bộ môn
-  final List<String>? studentIds;   // danh sách UID sinh viên
-  final List<String>? sessionIds;   // danh sách buổi học
+  // ⭐ SỬA: XÓA courseId, lecturerId - thay bằng:
+  final List<String>? courseIds; // Các môn lớp này học
+  final List<String>? studentIds; // Danh sách sinh viên
+  final List<String>? sessionIds; // Các buổi học của lớp
   
-  // === THÊM MỚI: Thông tin cho hiển thị lịch học ===
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final bool isActive;
@@ -19,9 +18,9 @@ class ClassModel implements HasId {
   ClassModel({
     required String id,
     required this.name,
-    required this.courseId,
-    required this.lecturerId,
     this.departmentId,
+    this.headTeacherId,
+    this.courseIds,
     this.studentIds,
     this.sessionIds,
     this.createdAt,
@@ -36,9 +35,9 @@ class ClassModel implements HasId {
     return ClassModel(
       id: id,
       name: _getString(data, 'name'),
-      courseId: _getString(data, 'course_id'),
-      lecturerId: _getString(data, 'lecturer_id'),
       departmentId: _getString(data, 'department_id'),
+      headTeacherId: _getString(data, 'head_teacher_id'), // ⭐ SỬA
+      courseIds: _getListString(data, 'course_ids'), // ⭐ SỬA
       studentIds: _getListString(data, 'student_ids'),
       sessionIds: _getListString(data, 'session_ids'),
       createdAt: _getDateTime(data, 'created_at'),
@@ -50,9 +49,9 @@ class ClassModel implements HasId {
   Map<String, dynamic> toMap() {
     return {
       'name': name,
-      'course_id': courseId,
-      'lecturer_id': lecturerId,
       if (departmentId != null) 'department_id': departmentId,
+      if (headTeacherId != null) 'head_teacher_id': headTeacherId, // ⭐ SỬA
+      if (courseIds != null) 'course_ids': courseIds, // ⭐ SỬA
       if (studentIds != null) 'student_ids': studentIds,
       if (sessionIds != null) 'session_ids': sessionIds,
       'created_at': createdAt?.toIso8601String(),
@@ -64,9 +63,9 @@ class ClassModel implements HasId {
   ClassModel copyWith({
     String? id,
     String? name,
-    String? courseId,
-    String? lecturerId,
     String? departmentId,
+    String? headTeacherId, // ⭐ SỬA
+    List<String>? courseIds, // ⭐ SỬA
     List<String>? studentIds,
     List<String>? sessionIds,
     DateTime? createdAt,
@@ -76,9 +75,9 @@ class ClassModel implements HasId {
     return ClassModel(
       id: id ?? this.id,
       name: name ?? this.name,
-      courseId: courseId ?? this.courseId,
-      lecturerId: lecturerId ?? this.lecturerId,
       departmentId: departmentId ?? this.departmentId,
+      headTeacherId: headTeacherId ?? this.headTeacherId, // ⭐ SỬA
+      courseIds: courseIds ?? this.courseIds, // ⭐ SỬA
       studentIds: studentIds ?? this.studentIds,
       sessionIds: sessionIds ?? this.sessionIds,
       createdAt: createdAt ?? this.createdAt,
@@ -111,14 +110,12 @@ class ClassModel implements HasId {
     return null;
   }
 
-  // === THÊM MỚI: Utility methods cho business logic ===
+  // === BUSINESS LOGIC METHODS ===
   
-  // Kiểm tra nếu class có sinh viên cụ thể
   bool containsStudent(String studentId) {
     return studentIds?.contains(studentId) ?? false;
   }
 
-  // Thêm sinh viên vào class
   ClassModel addStudent(String studentId) {
     final newStudentIds = List<String>.from(studentIds ?? []);
     if (!newStudentIds.contains(studentId)) {
@@ -127,14 +124,31 @@ class ClassModel implements HasId {
     return copyWith(studentIds: newStudentIds);
   }
 
-  // Xóa sinh viên khỏi class
   ClassModel removeStudent(String studentId) {
     final newStudentIds = List<String>.from(studentIds ?? []);
     newStudentIds.remove(studentId);
     return copyWith(studentIds: newStudentIds);
   }
 
-  // Thêm session vào class
+  // ⭐ THÊM: Quản lý môn học
+  bool containsCourse(String courseId) {
+    return courseIds?.contains(courseId) ?? false;
+  }
+
+  ClassModel addCourse(String courseId) {
+    final newCourseIds = List<String>.from(courseIds ?? []);
+    if (!newCourseIds.contains(courseId)) {
+      newCourseIds.add(courseId);
+    }
+    return copyWith(courseIds: newCourseIds);
+  }
+
+  ClassModel removeCourse(String courseId) {
+    final newCourseIds = List<String>.from(courseIds ?? []);
+    newCourseIds.remove(courseId);
+    return copyWith(courseIds: newCourseIds);
+  }
+
   ClassModel addSession(String sessionId) {
     final newSessionIds = List<String>.from(sessionIds ?? []);
     if (!newSessionIds.contains(sessionId)) {
@@ -143,9 +157,14 @@ class ClassModel implements HasId {
     return copyWith(sessionIds: newSessionIds);
   }
 
+  // ⭐ THÊM: Tính số lượng
+  int get studentCount => studentIds?.length ?? 0;
+  int get courseCount => courseIds?.length ?? 0;
+  int get sessionCount => sessionIds?.length ?? 0;
+
   @override
   String toString() {
-    return 'ClassModel(id: $id, name: $name, courseId: $courseId, lecturerId: $lecturerId, students: ${studentIds?.length ?? 0})';
+    return 'ClassModel(id: $id, name: $name, courses: $courseCount, students: $studentCount)';
   }
 
   @override
