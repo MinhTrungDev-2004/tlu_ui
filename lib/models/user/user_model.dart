@@ -18,7 +18,7 @@ class UserModel implements HasId {
   final String? classId;
   final String? departmentId;
   final List<String>? classIds;
-
+  final String? majorId;
   // ==== Nhận diện khuôn mặt ====
   final List<String>? faceUrls;
   final bool isFaceRegistered;
@@ -40,6 +40,7 @@ class UserModel implements HasId {
     this.studentCode,
     this.classId,
     this.departmentId,
+    this.majorId,
     this.classIds,
     this.faceUrls,
     this.isFaceRegistered = false,
