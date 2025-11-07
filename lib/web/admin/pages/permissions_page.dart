@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class PermissionsPage extends StatefulWidget {
   const PermissionsPage({Key? key}) : super(key: key);
@@ -10,61 +12,87 @@ class PermissionsPage extends StatefulWidget {
 class _PermissionsPageState extends State<PermissionsPage> {
   String? selectedUser;
   String? selectedRole;
-  bool showTreeView = false;
+  bool isLoading = true;
 
-  final List<Map<String, dynamic>> users = [
-    {'id': 1, 'name': 'Nguyễn Văn A', 'email': 'nguyenvana@tlu.edu.vn', 'currentRole': 'Admin'},
-    {'id': 2, 'name': 'Trần Thị B', 'email': 'tranthib@tlu.edu.vn', 'currentRole': 'Giảng viên'},
-    {'id': 3, 'name': 'Lê Văn C', 'email': 'levanc@tlu.edu.vn', 'currentRole': 'Phòng đào tạo'},
-    {'id': 4, 'name': 'Phạm Thị D', 'email': 'phamthid@tlu.edu.vn', 'currentRole': 'Giảng viên'},
-    {'id': 5, 'name': 'Hoàng Văn E', 'email': 'hoangvane@tlu.edu.vn', 'currentRole': 'Giám sát'},
-  ];
+  List<Map<String, dynamic>> users = [];
+  List<String> roles = [];
+  Map<String, List<String>> rolePermissions = {};
 
-  final List<String> roles = [
-    'Admin',
-    'Giảng viên',
-    'Phòng đào tạo',
-    'Quản lý khoa',
-    'Giám sát',
-  ];
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  final Map<String, List<String>> rolePermissions = {
-    'Admin': [
-      'Quản lý người dùng',
-      'Phân quyền hệ thống',
-      'Cấu hình hệ thống',
-      'Xem thống kê',
-      'Backup dữ liệu',
-      'Quản lý log',
-    ],
-    'Giảng viên': [
-      'Xem danh sách sinh viên',
-      'Điểm danh',
-      'Xem báo cáo lớp',
-      'Cập nhật thông tin cá nhân',
-    ],
-    'Phòng đào tạo': [
-      'Quản lý chương trình đào tạo',
-      'Xem và phê duyệt lịch học',
-      'Quản lý điểm và kết quả học tập',
-      'Thống kê và báo cáo toàn trường',
-    ],
-    'Quản lý khoa': [
-      'Quản lý giảng viên khoa',
-      'Xem thống kê khoa',
-      'Quản lý lớp học',
-      'Phê duyệt đơn từ',
-    ],
-    'Giám sát': [
-      'Theo dõi hoạt động giảng dạy',
-      'Giám sát điểm danh',
-      'Đánh giá chất lượng lớp học',
-      'Báo cáo vi phạm hoặc sự cố',
-    ],
-  };
+  @override
+  void initState() {
+    super.initState();
+    _loadDataFromFirebase();
+  }
+
+  Future<void> _loadDataFromFirebase() async {
+    try {
+      // Lấy danh sách users từ Firebase
+      final usersSnapshot = await _firestore.collection('users').get();
+      final List<Map<String, dynamic>> loadedUsers = [];
+      
+      for (var doc in usersSnapshot.docs) {
+        final userData = doc.data();
+        loadedUsers.add({
+          'id': doc.id,
+          'name': userData['name'] ?? 'Chưa có tên',
+          'email': userData['email'] ?? '',
+          'currentRole': userData['role'] ?? 'Chưa có vai trò',
+        });
+      }
+
+      // Lấy danh sách roles và permissions từ Firebase
+      final rolesSnapshot = await _firestore.collection('roles').get();
+      final List<String> loadedRoles = [];
+      final Map<String, List<String>> loadedPermissions = {};
+      
+      for (var doc in rolesSnapshot.docs) {
+        final roleData = doc.data();
+        final roleName = roleData['name'] ?? doc.id;
+        loadedRoles.add(roleName);
+        
+        // Lấy permissions cho role này
+        final permissions = roleData['permissions'] as List<dynamic>?;
+        if (permissions != null) {
+          loadedPermissions[roleName] = permissions.cast<String>();
+        } else {
+          loadedPermissions[roleName] = [];
+        }
+      }
+
+      setState(() {
+        users = loadedUsers;
+        roles = loadedRoles;
+        rolePermissions = loadedPermissions;
+        isLoading = false;
+      });
+    } catch (e) {
+      print('Lỗi khi tải dữ liệu từ Firebase: $e');
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return Scaffold(
+        backgroundColor: Colors.grey[100],
+        body: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Đang tải dữ liệu từ Firebase...'),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.grey[100],
       body: Padding(
@@ -89,7 +117,7 @@ class _PermissionsPageState extends State<PermissionsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Cấu hình quyền cho người dùng',
+                    const Text('Thay đổi quyền cho người dùng',
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 16),
                     Row(
@@ -137,12 +165,37 @@ class _PermissionsPageState extends State<PermissionsPage> {
                           ),
                         ),
                         const SizedBox(width: 16),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            decoration: const InputDecoration(
+                              labelText: 'Chọn quyền cụ thể (tùy chọn)',
+                              border: OutlineInputBorder(),
+                            ),
+                            value: null,
+                            items: selectedRole != null && rolePermissions[selectedRole] != null
+                                ? rolePermissions[selectedRole]!.map((permission) {
+                                    return DropdownMenuItem<String>(
+                                      value: permission,
+                                      child: Text(permission),
+                                    );
+                                  }).toList()
+                                : [],
+                            onChanged: (value) {
+                              // Có thể mở rộng để thêm/xóa quyền riêng lẻ
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Đã chọn quyền: $value')),
+                              );
+                            },
+                            hint: const Text('Chọn quyền cụ thể'),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
                         ElevatedButton.icon(
                           onPressed: selectedUser != null && selectedRole != null
                               ? _savePermission
                               : null,
                           icon: const Icon(Icons.save),
-                          label: const Text('Lưu'),
+                          label: const Text('Lưu thay đổi'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF0D47A1),
                             foregroundColor: Colors.white,
@@ -157,37 +210,11 @@ class _PermissionsPageState extends State<PermissionsPage> {
             ),
             const SizedBox(height: 16),
 
-            // Chọn chế độ xem
-            Row(
-              children: [
-                const Text('Xem quyền theo:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-                const SizedBox(width: 16),
-                ChoiceChip(
-                  label: const Text('Bảng'),
-                  selected: !showTreeView,
-                  onSelected: (selected) => setState(() => showTreeView = false),
-                ),
-                const SizedBox(width: 8),
-                ChoiceChip(
-                  label: const Text('Sơ đồ cây'),
-                  selected: showTreeView,
-                  onSelected: (selected) => setState(() => showTreeView = true),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
+          
 
-            // Hiển thị bảng hoặc cây
+            // Hiển thị bảng phân quyền
             Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  if (constraints.maxWidth < 600) {
-                    return _buildTreeView();
-                  } else {
-                    return showTreeView ? _buildTreeView() : _buildUserTableView();
-                  }
-                },
-              ),
+              child: _buildUserTableView(),
             ),
           ],
         ),
@@ -243,11 +270,33 @@ class _PermissionsPageState extends State<PermissionsPage> {
                           ),
                           DataCell(
                             SizedBox(
-                              height: 80, // 👈 cố định chiều cao
+                              height: 120,
                               child: SingleChildScrollView(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: permissions.map((p) => Text("• $p")).toList(),
+                                  children: permissions.map((permission) {
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 2),
+                                      child: Row(
+                                        children: [
+                                          Checkbox(
+                                            value: true, // Mặc định checked vì đang có quyền
+                                            onChanged: (bool? value) {
+                                              // TODO: Có thể mở rộng để cho phép bỏ quyền riêng lẻ
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text('Chức năng bỏ quyền riêng lẻ đang được phát triển'),
+                                                ),
+                                              );
+                                            },
+                                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Expanded(child: Text(permission)),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
                                 ),
                               ),
                             ),
@@ -265,48 +314,7 @@ class _PermissionsPageState extends State<PermissionsPage> {
     );
   }
 
-  // 🔹 Sơ đồ cây quyền
-  Widget _buildTreeView() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Sơ đồ phân quyền dạng cây', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  children: rolePermissions.entries.map((entry) {
-                    return _buildRoleTree(entry.key, entry.value);
-                  }).toList(),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildRoleTree(String role, List<String> permissions) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ExpansionTile(
-        leading: Icon(Icons.admin_panel_settings, color: _getRoleColor(role)),
-        title: Text(role,
-            style: TextStyle(fontWeight: FontWeight.bold, color: _getRoleColor(role), fontSize: 16)),
-        children: permissions
-            .map((permission) => ListTile(
-          leading: const Icon(Icons.check_circle, color: Colors.green, size: 20),
-          title: Text(permission),
-          dense: true,
-        ))
-            .toList(),
-      ),
-    );
-  }
 
   Color _getRoleColor(String role) {
     switch (role) {
@@ -325,7 +333,7 @@ class _PermissionsPageState extends State<PermissionsPage> {
     }
   }
 
-  void _savePermission() {
+  Future<void> _savePermission() async {
     if (selectedUser != null && selectedRole != null) {
       final user = users.firstWhere((u) => u['id'].toString() == selectedUser);
       showDialog(
@@ -338,16 +346,33 @@ class _PermissionsPageState extends State<PermissionsPage> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
             ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  user['currentRole'] = selectedRole;
-                });
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Đã cập nhật vai trò cho ${user['name']} thành $selectedRole')),
-                );
-                selectedUser = null;
-                selectedRole = null;
+              onPressed: () async {
+                try {
+                  // Cập nhật role trong Firebase
+                  await _firestore.collection('users').doc(selectedUser).update({
+                    'role': selectedRole,
+                    'updatedAt': FieldValue.serverTimestamp(),
+                  });
+
+                  // Cập nhật local state
+                  setState(() {
+                    user['currentRole'] = selectedRole;
+                  });
+
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Đã cập nhật vai trò cho ${user['name']} thành $selectedRole')),
+                  );
+                  
+                  // Reset selection
+                  selectedUser = null;
+                  selectedRole = null;
+                } catch (e) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Lỗi khi cập nhật vai trò: $e')),
+                  );
+                }
               },
               child: const Text('Xác nhận'),
             ),

@@ -136,8 +136,6 @@ class _TeacherHomeState extends State<TeacherHome> {
       ),
     );
   }
-
-  /// 2b. Card Thông báo mới (Giữ nguyên, vì đây là dữ liệu khác)
   Widget _buildNotificationCard() {
     return Container(
       padding: const EdgeInsets.all(16.0),
@@ -210,7 +208,6 @@ class _TeacherHomeState extends State<TeacherHome> {
     );
   }
 
-  /// ⭐ Card lịch hôm nay (đổ dữ liệu nhưng GIỮ NGUYÊN UI)
   Widget _buildScheduleCard(UserModel user) {
     // Nếu sessions.lecturer_id lưu UID Firebase → dùng currentUserId
     final String lecturerKey = currentUserId ?? user.id;
@@ -227,7 +224,6 @@ class _TeacherHomeState extends State<TeacherHome> {
           (a, b) => a.startDateTime.compareTo(b.startDateTime),
         );
 
-        // chọn 1 buổi để hiển thị: đang diễn ra ưu tiên, nếu không có thì buổi sắp tới
         final now = DateTime.now();
         SessionModel? display;
         if (sessions.isNotEmpty) {
@@ -241,7 +237,6 @@ class _TeacherHomeState extends State<TeacherHome> {
           final idx = sessions.indexOf(display);
           if (idx >= 0) remainingCount = sessions.length - (idx + 1);
         }
-
         return Container(
           padding: const EdgeInsets.all(16.0),
           decoration: BoxDecoration(
@@ -305,8 +300,7 @@ class _TeacherHomeState extends State<TeacherHome> {
                   onPressed: (display == null || display.isHappeningNow)
                       ? null
                       : () {
-                          // TODO: generate QR cho display
-                          // _sessionService.generateAndSaveQr(display.id, Duration(minutes: 5));
+
                         },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
@@ -330,7 +324,7 @@ class _TeacherHomeState extends State<TeacherHome> {
               SizedBox(
                 width: double.infinity,
                 child: TextButton(
-                  onPressed: () {}, // TODO: chuyển tới danh sách chi tiết
+                  onPressed: () {},
                   style: TextButton.styleFrom(
                     backgroundColor: Colors.grey[200],
                     padding: const EdgeInsets.symmetric(vertical: 14),
@@ -363,7 +357,6 @@ class _TeacherHomeState extends State<TeacherHome> {
     );
   }
 
-  /// GIỮ NGUYÊN LAYOUT ITEM như ảnh: Tên môn (đậm), thời gian + phòng, giảng viên, dòng “chủ đề” (mình thay = tên lớp để có dữ liệu thật)
   Widget _buildScheduleItem(UserModel user, SessionModel session) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -384,8 +377,6 @@ class _TeacherHomeState extends State<TeacherHome> {
               const SizedBox(height: 5),
               _buildInfoRow(Icons.person_outline, 'Giảng viên: ${user.name}'),
               const SizedBox(height: 5),
-              // Ảnh UI có “Chủ đề: …” – model chưa có field topic,
-              // tạm hiển thị tên LỚP để giữ bố cục & có dữ liệu thật.
               FutureBuilder<ClassModel?>(
                 future: _getClass(session.classId),
                 builder: (context, snap) {
@@ -404,8 +395,6 @@ class _TeacherHomeState extends State<TeacherHome> {
       ],
     );
   }
-
-  // ===== Helpers: tên môn / tên lớp có cache để tránh N+1 =====
 
   Widget _buildCourseName(String courseId) {
     final cached = _courseCache[courseId];
