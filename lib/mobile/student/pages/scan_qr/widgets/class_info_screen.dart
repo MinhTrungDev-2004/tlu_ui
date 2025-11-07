@@ -57,24 +57,7 @@ class _ClassInfoScreenState extends State<ClassInfoScreen> {
 
       // Load tên giảng viên (nếu có lecturerId)
       if (widget.session.lecturerId != null && widget.session.lecturerId!.isNotEmpty) {
-        final lecturerDoc = await _firestore
-            .collection('user')
-            .doc(widget.session.lecturerId)
-            .get();
-        
-        if (lecturerDoc.exists) {
-          final data = lecturerDoc.data();
-          final String fullName = '${data?['firstName'] ?? ''} ${data?['lastName'] ?? ''}'.trim();
-          final String title = data?['title'] ?? '';
-          
-          setState(() {
-            _lecturerName = title.isNotEmpty ? '$title $fullName' : fullName;
-          });
-        } else {
-          setState(() {
-            _lecturerName = widget.session.lecturerId!;
-          });
-        }
+        await _loadLecturerName();
       } else {
         setState(() {
           _lecturerName = 'Chưa xác định';
@@ -92,6 +75,108 @@ class _ClassInfoScreenState extends State<ClassInfoScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  // 🎯 SỬA LỖI: Hàm load tên giảng viên với nhiều cách thử
+  Future<void> _loadLecturerName() async {
+    try {
+      // THỬ 1: Collection 'users' (thường dùng)
+      final lecturerDoc = await _firestore
+          .collection('users')
+          .doc(widget.session.lecturerId)
+          .get();
+      
+      if (lecturerDoc.exists) {
+        final data = lecturerDoc.data();
+        final name = _extractLecturerName(data);
+        if (name.isNotEmpty) {
+          setState(() {
+            _lecturerName = name;
+          });
+          return;
+        }
+      }
+
+      // THỬ 2: Collection 'lecturers' (nếu có collection riêng)
+      final lecturerDoc2 = await _firestore
+          .collection('lecturers')
+          .doc(widget.session.lecturerId)
+          .get();
+      
+      if (lecturerDoc2.exists) {
+        final data = lecturerDoc2.data();
+        final name = _extractLecturerName(data);
+        if (name.isNotEmpty) {
+          setState(() {
+            _lecturerName = name;
+          });
+          return;
+        }
+      }
+
+      // THỬ 3: Collection 'teachers' (nếu có collection riêng)
+      final lecturerDoc3 = await _firestore
+          .collection('teachers')
+          .doc(widget.session.lecturerId)
+          .get();
+      
+      if (lecturerDoc3.exists) {
+        final data = lecturerDoc3.data();
+        final name = _extractLecturerName(data);
+        if (name.isNotEmpty) {
+          setState(() {
+            _lecturerName = name;
+          });
+          return;
+        }
+      }
+
+      // Nếu không tìm thấy ở đâu, dùng UID
+      setState(() {
+        _lecturerName = widget.session.lecturerId!;
+      });
+
+    } catch (e) {
+      print('Lỗi khi load tên giảng viên: $e');
+      setState(() {
+        _lecturerName = widget.session.lecturerId!;
+      });
+    }
+  }
+
+  // 🎯 Hàm trích xuất tên giảng viên từ nhiều định dạng
+  String _extractLecturerName(Map<String, dynamic>? data) {
+    if (data == null) return '';
+
+    // Thử các trường tên khác nhau
+    final String? fullName = data['fullName'];
+    final String? name = data['name'];
+    final String? displayName = data['displayName'];
+    final String? firstName = data['firstName'];
+    final String? lastName = data['lastName'];
+    final String? title = data['title'];
+
+    // Ưu tiên: fullName -> name -> displayName -> firstName + lastName
+    if (fullName != null && fullName.isNotEmpty) {
+      return title != null && title.isNotEmpty ? '$title $fullName' : fullName;
+    }
+    
+    if (name != null && name.isNotEmpty) {
+      return title != null && title.isNotEmpty ? '$title $name' : name;
+    }
+    
+    if (displayName != null && displayName.isNotEmpty) {
+      return title != null && title.isNotEmpty ? '$title $displayName' : displayName;
+    }
+    
+    if (firstName != null && lastName != null) {
+      final String combinedName = '$firstName $lastName'.trim();
+      if (combinedName.isNotEmpty) {
+        return title != null && title.isNotEmpty ? '$title $combinedName' : combinedName;
+      }
+    }
+
+    return '';
   }
 
   @override
@@ -131,7 +216,7 @@ class _ClassInfoScreenState extends State<ClassInfoScreen> {
                         children: [
                           // Tên môn học (lấy từ Firebase)
                           Text(
-                            'Môn học: $_courseName', // ✅ TÊN MÔN HỌC THỰC
+                            'Môn học: $_courseName',
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
@@ -144,7 +229,12 @@ class _ClassInfoScreenState extends State<ClassInfoScreen> {
                             children: [
                               const Icon(Icons.person, size: 20, color: Colors.black54),
                               const SizedBox(width: 6),
-                              Text(_lecturerName), // ✅ TÊN GIẢNG VIÊN THỰC
+                              Expanded(
+                                child: Text(
+                                  _lecturerName,
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                              ),
                             ],
                           ),
                           const SizedBox(height: 6),
@@ -170,11 +260,23 @@ class _ClassInfoScreenState extends State<ClassInfoScreen> {
                           const SizedBox(height: 6),
                           
                           // Thông tin phòng học
-                          Text('Phòng: ${widget.session.room ?? 'Chưa xác định'}'),
+                          Row(
+                            children: [
+                              const Icon(Icons.location_on, size: 20, color: Colors.black54),
+                              const SizedBox(width: 6),
+                              Text('Phòng: ${widget.session.room ?? 'Chưa xác định'}'),
+                            ],
+                          ),
                           const SizedBox(height: 6),
                           
                           // Trạng thái buổi học
-                          Text('Trạng thái: ${_getStatusText(widget.session.status)}'),
+                          Row(
+                            children: [
+                              const Icon(Icons.info, size: 20, color: Colors.black54),
+                              const SizedBox(width: 6),
+                              Text('Trạng thái: ${_getStatusText(widget.session.status)}'),
+                            ],
+                          ),
                           
                           const SizedBox(height: 8),
                           
@@ -329,13 +431,13 @@ class _ClassInfoScreenState extends State<ClassInfoScreen> {
                       Navigator.pop(context);
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey,
+                      backgroundColor: Colors.white,
                       minimumSize: const Size(double.infinity, 50),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    child: const Text('Quét lại QR'),
+                    child: const Text('Quét lại QR',style: TextStyle(color:Colors.black)),
                   ),
                 ],
               ),

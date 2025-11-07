@@ -1,9 +1,9 @@
 import 'dart:io';
-import 'dart:convert'; 
+import 'dart:math';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
-import 'dart:math';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/user/user_model.dart';
 import '../../models/face_data_model.dart';
 import '../firestore_service.dart';
@@ -11,20 +11,20 @@ import '../firestore_service.dart';
 class StudentService {
   final FirestoreService _firestoreService = FirestoreService();
   final FirebaseStorage _storage = FirebaseStorage.instance;
-  final FirebaseFunctions _functions = FirebaseFunctions.instance; 
+  final FirebaseFunctions _functions = FirebaseFunctions.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   // ==================== QUẢN LÝ THÔNG TIN SINH VIÊN ====================
 
-  /// 🔹 Lấy thông tin sinh viên theo ID
   Future<UserModel?> getStudentById(String studentId) async {
     try {
       return await _firestoreService.getDocument<UserModel>(studentId);
     } catch (e) {
+      print('❌ Lỗi khi lấy thông tin sinh viên $studentId: $e');
       throw Exception('Lỗi khi lấy thông tin sinh viên: $e');
     }
   }
 
-  /// 🔹 Lấy thông tin sinh viên theo email
   Future<UserModel?> getStudentByEmail(String email) async {
     try {
       final students = await _firestoreService.queryDocuments<UserModel>(
@@ -33,11 +33,11 @@ class StudentService {
       );
       return students.isNotEmpty ? students.first : null;
     } catch (e) {
+      print('❌ Lỗi khi lấy thông tin sinh viên theo email $email: $e');
       throw Exception('Lỗi khi lấy thông tin sinh viên theo email: $e');
     }
   }
 
-  /// 🔹 Lấy tất cả sinh viên
   Future<List<UserModel>> getAllStudents() async {
     try {
       return await _firestoreService.queryDocuments<UserModel>(
@@ -45,11 +45,11 @@ class StudentService {
         isEqualTo: 'student',
       );
     } catch (e) {
+      print('❌ Lỗi khi lấy danh sách sinh viên: $e');
       throw Exception('Lỗi khi lấy danh sách sinh viên: $e');
     }
   }
 
-  /// 🔹 Lấy sinh viên theo lớp
   Future<List<UserModel>> getStudentsByClass(String classId) async {
     try {
       return await _firestoreService.queryDocuments<UserModel>(
@@ -57,59 +57,51 @@ class StudentService {
         isEqualTo: classId,
       );
     } catch (e) {
+      print('❌ Lỗi khi lấy sinh viên theo lớp $classId: $e');
       throw Exception('Lỗi khi lấy sinh viên theo lớp: $e');
     }
   }
 
-  /// 🔹 Cập nhật thông tin sinh viên
   Future<void> updateStudentProfile(String studentId, Map<String, dynamic> updates) async {
     try {
       await _firestoreService.updateDocument<UserModel>(studentId, updates);
+      print('✅ Cập nhật thông tin sinh viên $studentId thành công');
     } catch (e) {
+      print('❌ Lỗi khi cập nhật thông tin sinh viên $studentId: $e');
       throw Exception('Lỗi khi cập nhật thông tin sinh viên: $e');
     }
   }
 
   // ==================== QUẢN LÝ ẢNH KHUÔN MẶT ====================
 
-  /// 🔹 Upload ảnh khuôn mặt lên Firebase Storage
-  /// Đã thay đổi return type để trả về URL, bucketName và filePath
-  Future<Map<String, String>> uploadFaceImage({ // [THAY ĐỔI 1/6]
+  Future<Map<String, String>> uploadFaceImage({
     required File imageFile,
     required String studentId,
     required String pose,
   }) async {
     try {
       print('🔄 Đang upload ảnh $pose cho sinh viên $studentId...');
-
-      // Tạo tên file unique - SỬA THEO CẤU TRÚC CLOUD FUNCTION
+      
       String fileName = 'student_faces/$studentId/${pose}_${DateTime.now().millisecondsSinceEpoch}.jpg';
       Reference ref = _storage.ref().child(fileName);
-      
-      // Upload file
       UploadTask uploadTask = ref.putFile(imageFile);
       TaskSnapshot snapshot = await uploadTask;
-      
-      // Lấy download URL
       String downloadUrl = await snapshot.ref.getDownloadURL();
       
       print('✅ Upload thành công: $pose - $downloadUrl');
       
-      // Trả về cả URL, Bucket Name và File Path
       return {
         'url': downloadUrl,
         'bucketName': snapshot.ref.bucket,
         'filePath': snapshot.ref.fullPath,
       };
     } catch (e) {
-      print('❌ Lỗi upload ảnh $pose: $e');
+      print('❌ Lỗi upload ảnh $pose cho $studentId: $e');
       throw Exception('Lỗi khi upload ảnh khuôn mặt: $e');
     }
   }
 
-  /// 🔹 Upload nhiều ảnh khuôn mặt (3 hướng)
-  /// Đã thay đổi return type để chứa thông tin bucket/path
-  Future<Map<String, Map<String, String>>> uploadMultipleFaceImages({ // [THAY ĐỔI 2/6]
+  Future<Map<String, Map<String, String>>> uploadMultipleFaceImages({
     required String studentId,
     required File frontalImage,
     required File leftImage,
@@ -117,115 +109,110 @@ class StudentService {
   }) async {
     try {
       print('🔄 Bắt đầu upload 3 ảnh cho sinh viên $studentId...');
-
-      // Sẽ chứa: {'pose': {'url': '...', 'bucketName': '...', 'filePath': '...'}}
+      
       Map<String, Map<String, String>> poseData = {};
-
-      // Upload từng ảnh
+      
       poseData['frontal'] = await uploadFaceImage(
-        imageFile: frontalImage,
-        studentId: studentId,
-        pose: 'face', // ← SỬA THÀNH 'face' ĐỂ TRÙNG VỚI CLOUD FUNCTION
+        imageFile: frontalImage, 
+        studentId: studentId, 
+        pose: 'frontal'
       );
-
+      
       poseData['left'] = await uploadFaceImage(
-        imageFile: leftImage,
-        studentId: studentId,
-        pose: 'left',
+        imageFile: leftImage, 
+        studentId: studentId, 
+        pose: 'left'
       );
-
+      
       poseData['right'] = await uploadFaceImage(
-        imageFile: rightImage,
-        studentId: studentId,
-        pose: 'right',
+        imageFile: rightImage, 
+        studentId: studentId, 
+        pose: 'right'
       );
-
+      
       print('🎉 Đã upload thành công 3 ảnh cho sinh viên $studentId');
-      return poseData; // Trả về cấu trúc mới
+      return poseData;
     } catch (e) {
-      print('❌ Lỗi upload 3 ảnh: $e');
+      print('❌ Lỗi upload 3 ảnh cho $studentId: $e');
       throw Exception('Lỗi khi upload nhiều ảnh khuôn mặt: $e');
     }
   }
 
-  /// 🔹 Xóa ảnh khuôn mặt cũ
   Future<void> deleteOldFaceImages(List<String> oldImageUrls) async {
     try {
       for (String url in oldImageUrls) {
         try {
           Reference ref = _storage.refFromURL(url);
           await ref.delete();
+          print('✅ Đã xóa ảnh cũ: $url');
         } catch (e) {
-          print('Lỗi khi xóa ảnh cũ: $e');
-          // Tiếp tục xóa ảnh khác, không throw error
+          print('⚠️ Không thể xóa ảnh cũ $url: $e');
         }
       }
     } catch (e) {
+      print('❌ Lỗi khi xóa ảnh khuôn mặt cũ: $e');
       throw Exception('Lỗi khi xóa ảnh khuôn mặt cũ: $e');
     }
   }
 
-  /// 🔹 Lấy URLs ảnh khuôn mặt của sinh viên
   Future<List<String>> getStudentFaceUrls(String studentId) async {
     try {
       final student = await getStudentById(studentId);
       return student?.faceUrls ?? [];
     } catch (e) {
+      print('❌ Lỗi khi lấy URLs ảnh khuôn mặt của $studentId: $e');
       throw Exception('Lỗi khi lấy URLs ảnh khuôn mặt: $e');
     }
   }
 
-  // ==================== GỌI CLOUD FUNCTIONS ====================
+  // ==================== CLOUD FUNCTIONS ====================
 
-  /// 🔹 Gọi Cloud Function để trích xuất embedding từ ảnh
-  /// Đã thay đổi input để truyền bucketName và filePath
-  Future<List<double>> extractFaceEmbedding(String bucketName, String filePath) async { // [THAY ĐỔI 3/6]
+  Future<List<double>> extractFaceEmbedding(String imageUrl) async {
     try {
       print('🔄 Gọi Cloud Function extractFaceEmbedding...');
       
-      final HttpsCallable callable = _functions.httpsCallable('extractFaceEmbedding');
-      // Truyền bucketName và filePath thay vì imageUrl
-      final result = await callable.call({
-        'bucketName': bucketName,
-        'filePath': filePath,
-      });
+      final functions = FirebaseFunctions.instanceFor(region: 'us-central1');
+      final HttpsCallable callable = functions.httpsCallable(
+        'extractFaceEmbedding',
+        options: HttpsCallableOptions(
+          limitedUseAppCheckToken: false,
+          timeout: const Duration(seconds: 60),
+        ),
+      );
+
+      final result = await callable.call({'imageUrl': imageUrl});
+      final data = result.data as Map<String, dynamic>;
       
-      final List<double> embedding = List<double>.from(result.data['embedding']);
-      print('✅ Trích xuất embedding thành công, dimension: ${embedding.length}');
-      
-      return embedding;
+      if (data['success'] == true) {
+        final List<dynamic> embeddingList = data['embedding'] as List<dynamic>;
+        
+        final List<double> embedding = embeddingList.map((value) {
+          if (value is int) return value.toDouble();
+          if (value is double) return value;
+          if (value is String) return double.tryParse(value) ?? 0.0;
+          return 0.0;
+        }).toList();
+        
+        // Kiểm tra embedding hợp lệ
+        if (embedding.isEmpty) {
+          throw Exception('Embedding trống');
+        }
+        
+        print('✅ Embedding trích xuất thành công: ${embedding.length} dimensions');
+        return embedding;
+      } else {
+        throw Exception('Extract embedding failed: ${data['error']}');
+      }
+    } on FirebaseFunctionsException catch (e) {
+      print('❌ Lỗi Firebase Functions: ${e.code} - ${e.message}');
+      throw Exception('Lỗi kết nối đến server: ${e.message}');
     } catch (e) {
       print('❌ Lỗi trích xuất embedding: $e');
       throw Exception('Lỗi khi trích xuất embedding: $e');
     }
   }
 
-  /// 🔹 Gọi Cloud Function để so sánh 2 embeddings
-  Future<Map<String, dynamic>> compareFaces(List<double> embedding1, List<double> embedding2) async {
-    try {
-      print('🔄 Gọi Cloud Function compareFaces...');
-      
-      final HttpsCallable callable = _functions.httpsCallable('compareFaces');
-      final result = await callable.call({
-        'embedding1': embedding1,
-        'embedding2': embedding2,
-      });
-      
-      print('✅ So sánh thành công, similarity: ${result.data['similarity']}');
-      return {
-        'similarity': result.data['similarity'],
-        'isMatch': result.data['isMatch'],
-        'matchPercentage': result.data['matchPercentage'],
-      };
-    } catch (e) {
-      print('❌ Lỗi so sánh faces: $e');
-      throw Exception('Lỗi khi so sánh khuôn mặt: $e');
-    }
-  }
-
-  /// 🔹 Trích xuất embeddings từ nhiều ảnh
-  /// Đã thay đổi input để nhận poseData thay vì chỉ URLs
-  Future<Map<String, List<double>>> extractMultipleEmbeddings(Map<String, Map<String, String>> poseData) async { // [THAY ĐỔI 4/6]
+  Future<Map<String, List<double>>> extractMultipleEmbeddings(Map<String, Map<String, String>> poseData) async {
     try {
       print('🔄 Trích xuất embeddings từ ${poseData.length} ảnh...');
       
@@ -233,12 +220,11 @@ class StudentService {
       
       for (var entry in poseData.entries) {
         final String pose = entry.key;
-        final String bucketName = entry.value['bucketName']!; // Lấy bucketName
-        final String filePath = entry.value['filePath']!;     // Lấy filePath
+        final String imageUrl = entry.value['url']!;
         
         print('📸 Đang trích xuất embedding cho $pose...');
-        // Truyền bucketName và filePath
-        final embedding = await extractFaceEmbedding(bucketName, filePath); 
+        
+        final embedding = await extractFaceEmbedding(imageUrl);
         embeddings[pose] = embedding;
         
         print('✅ Đã trích xuất embedding cho $pose (${embedding.length} dimensions)');
@@ -251,32 +237,39 @@ class StudentService {
     }
   }
 
-  // ==================== QUẢN LÝ FACE DATA ====================
+  // ==================== FACE DATA ====================
 
-  /// 🔹 Lấy face data của sinh viên
   Future<FaceDataModel?> getStudentFaceData(String studentId) async {
     try {
       final faceDataId = 'face_$studentId';
       return await _firestoreService.getDocument<FaceDataModel>(faceDataId);
     } catch (e) {
+      print('❌ Lỗi khi lấy face data của $studentId: $e');
       throw Exception('Lỗi khi lấy face data: $e');
     }
   }
 
-  /// 🔹 Đăng ký khuôn mặt cho sinh viên (FULL - có embeddings)
   Future<void> registerStudentFace({
     required String studentId,
     required Map<String, String> poseImageUrls,
     required Map<String, List<double>> poseEmbeddings,
   }) async {
     try {
-      // 1. Lấy thông tin sinh viên
-      final student = await getStudentById(studentId);
-      if (student == null) {
-        throw Exception('Không tìm thấy sinh viên');
+      // Kiểm tra dữ liệu đầu vào
+      if (poseImageUrls.length != 3 || poseEmbeddings.length != 3) {
+        throw Exception('Cần đủ 3 ảnh và 3 embeddings từ các góc độ');
+      }
+      
+      for (var embedding in poseEmbeddings.values) {
+        if (embedding.isEmpty) {
+          throw Exception('Embedding không hợp lệ');
+        }
       }
 
-      // 2. Tạo hoặc cập nhật FaceData
+      // Lấy thông tin sinh viên
+      final student = await getStudentById(studentId);
+      if (student == null) throw Exception('Không tìm thấy sinh viên');
+
       final faceDataId = 'face_$studentId';
       FaceDataModel faceData = FaceDataModel(
         id: faceDataId,
@@ -291,9 +284,17 @@ class StudentService {
         version: 1,
       );
 
+      // Kiểm tra trùng lặp trước khi lưu
+      final existingFaceData = await getStudentFaceData(studentId);
+      if (existingFaceData != null) {
+        print('⚠️ Đã có face data, sẽ ghi đè...');
+        // Xóa ảnh cũ nếu có
+        await deleteOldFaceImages(existingFaceData.poseImageUrls.values.toList());
+      }
+
       await _firestoreService.addDocument<FaceDataModel>(faceData);
 
-      // 3. Cập nhật UserModel
+      // Cập nhật UserModel
       await _firestoreService.updateDocument<UserModel>(studentId, {
         'faceUrls': poseImageUrls.values.toList(),
         'isFaceRegistered': true,
@@ -306,12 +307,18 @@ class StudentService {
       print('🧮 Embeddings: ${poseEmbeddings.length}');
 
     } catch (e) {
+      print('❌ Lỗi khi đăng ký khuôn mặt: $e');
+      // Xóa ảnh đã upload nếu lỗi
+      try {
+        await deleteOldFaceImages(poseImageUrls.values.toList());
+      } catch (deleteError) {
+        print('⚠️ Không thể xóa ảnh đã upload: $deleteError');
+      }
       throw Exception('Lỗi khi đăng ký khuôn mặt: $e');
     }
   }
 
-  /// 🔹 ĐĂNG KÝ KHUÔN MẶT HOÀN CHỈNH (TỰ ĐỘNG TRÍCH XUẤT EMBEDDINGS)
-  Future<void> registerFaceWithEmbeddings({ // [THAY ĐỔI 5/6]
+  Future<void> registerFaceWithEmbeddings({
     required String studentId,
     required File frontalImage,
     required File leftImage,
@@ -320,8 +327,7 @@ class StudentService {
     try {
       print('🚀 Bắt đầu đăng ký khuôn mặt HOÀN CHỈNH...');
 
-      // 1. Upload ảnh lên Storage (nhận poseData mới)
-      // poseData: {'pose': {'url': '...', 'bucketName': '...', 'filePath': '...'}}
+      // 1. Upload ảnh lên Storage
       final Map<String, Map<String, String>> poseData = await uploadMultipleFaceImages(
         studentId: studentId,
         frontalImage: frontalImage,
@@ -329,11 +335,10 @@ class StudentService {
         rightImage: rightImage,
       );
 
-      // Tách riêng poseImageUrls (chỉ cần URL cho Firestore)
+      // Tách riêng poseImageUrls
       final Map<String, String> imageUrls = poseData.map((key, value) => MapEntry(key, value['url']!));
 
-
-      // 2. Trích xuất embeddings từ Cloud Functions (SỬ DỤNG poseData)
+      // 2. Trích xuất embeddings từ Cloud Functions
       final Map<String, List<double>> embeddings = await extractMultipleEmbeddings(poseData);
 
       // 3. Đăng ký với embeddings
@@ -351,165 +356,155 @@ class StudentService {
     }
   }
 
-  /// 🔹 Cập nhật khuôn mặt (overwrite)
-  Future<void> updateStudentFace({
-    required String studentId,
-    required Map<String, String> newPoseImageUrls,
-    required Map<String, List<double>> newPoseEmbeddings,
-  }) async {
-    try {
-      // 1. Lấy thông tin cũ để xóa ảnh
-      final student = await getStudentById(studentId);
-      final oldFaceUrls = student?.faceUrls ?? [];
-
-      // 2. Xóa ảnh cũ (nếu có)
-      if (oldFaceUrls.isNotEmpty) {
-        await deleteOldFaceImages(oldFaceUrls);
-      }
-
-      // 3. Cập nhật FaceData
-      await _firestoreService.updateDocument<FaceDataModel>('face_$studentId', {
-        'poseImageUrls': newPoseImageUrls,
-        'poseEmbeddings': newPoseEmbeddings,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'version': FieldValue.increment(1),
-      });
-
-      // 4. Cập nhật UserModel
-      await _firestoreService.updateDocument<UserModel>(studentId, {
-        'faceUrls': newPoseImageUrls.values.toList(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-
-    } catch (e) {
-      throw Exception('Lỗi khi cập nhật khuôn mặt: $e');
-    }
-  }
-
   // ==================== ĐIỂM DANH BẰNG KHUÔN MẶT ====================
 
-  /// 🔹 Điểm danh bằng khuôn mặt
-  Future<Map<String, dynamic>> markAttendanceWithFace(File faceImage) async { // [THAY ĐỔI 6/6]
+  Future<Map<String, dynamic>> markAttendanceWithFace(File faceImage) async {
     try {
-      print('📸 Bắt đầu điểm danh bằng khuôn mặt...');
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        return {
+          'success': false, 
+          'message': 'Vui lòng đăng nhập để điểm danh',
+          'errorCode': 'NOT_LOGGED_IN'
+        };
+      }
 
-      // 1. Upload ảnh điểm danh tạm thời
-      final String tempPath = 'attendance_temp/${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final Reference ref = _storage.ref(tempPath);
-      await ref.putFile(faceImage);
-      
-      // 2. Trích xuất embedding từ ảnh điểm danh
-      // Truyền bucketName và filePath thay vì imageUrl
-      final List<double> queryEmbedding = await extractFaceEmbedding(ref.bucket, ref.fullPath);
+      final String loggedInStudentId = currentUser.uid;
+      print('🔐 Sinh viên đang đăng nhập: $loggedInStudentId');
 
-      // 3. Xóa ảnh tạm
-      await ref.delete();
+      // 1. Kiểm tra sinh viên đã đăng ký khuôn mặt chưa
+      final faceData = await getStudentFaceData(loggedInStudentId);
+      if (faceData == null || faceData.poseEmbeddings['frontal'] == null) {
+        return {
+          'success': false, 
+          'message': 'Sinh viên chưa đăng ký khuôn mặt trực diện',
+          'errorCode': 'FACE_NOT_REGISTERED'
+        };
+      }
 
-      // 4. Tìm sinh viên khớp
-      final matchedStudent = await _findMatchingStudent(queryEmbedding);
-      
-      if (matchedStudent != null) {
-        // 5. Ghi nhận điểm danh
-        await _recordAttendance(matchedStudent);
+      // 2. Upload ảnh điểm danh tạm thời
+      final uploadResult = await uploadFaceImage(
+        imageFile: faceImage,
+        studentId: 'temp_attendance',
+        pose: 'attendance_${DateTime.now().millisecondsSinceEpoch}',
+      );
+      final String imageUrl = uploadResult['url']!;
+
+      // 3. Trích xuất embedding từ ảnh điểm danh
+      final List<double> queryEmbedding = await extractFaceEmbedding(imageUrl);
+
+      // 4. Xóa ảnh tạm ngay sau khi extract
+      try {
+        Reference ref = _storage.refFromURL(imageUrl);
+        await ref.delete();
+        print('✅ Đã xóa ảnh tạm điểm danh');
+      } catch (e) {
+        print('⚠️ Không thể xóa ảnh tạm: $e');
+      }
+
+      // 5. So sánh với embedding đã đăng ký
+      final List<double> registeredEmbedding = List<double>.from(faceData.poseEmbeddings['frontal']!);
+      final double similarity = _cosineSimilarity(queryEmbedding, registeredEmbedding);
+
+      print('🔍 KẾT QUẢ SO SÁNH:');
+      print('   - Sinh viên: ${faceData.userEmail}');
+      print('   - Similarity: ${(similarity * 100).toStringAsFixed(1)}%');
+      print('   - Threshold: 88%');
+
+      // 6. Quyết định điểm danh
+      if (similarity >= 0.88) {
+        // ✅ THÀNH CÔNG: Khuôn mặt khớp
+        await _recordAttendance({
+          'studentId': loggedInStudentId,
+          'name': faceData.userEmail ?? 'Unknown',
+          'className': 'Unknown',
+          'similarity': similarity,
+        });
         
         return {
           'success': true,
-          'student': matchedStudent,
-          'message': 'Điểm danh thành công cho ${matchedStudent['name']}',
+          'message': 'Điểm danh thành công!',
+          'similarity': similarity,
+          'student': {
+            'studentId': loggedInStudentId,
+            'name': faceData.userEmail ?? 'Unknown',
+            'similarity': similarity,
+          }
         };
       } else {
+        // ❌ THẤT BẠI: Khuôn mặt không khớp
         return {
           'success': false,
-          'message': 'Không tìm thấy sinh viên phù hợp',
+          'message': 'Khuôn mặt không khớp với thông tin đăng ký (${(similarity * 100).toStringAsFixed(1)}%)',
+          'similarity': similarity,
+          'errorCode': 'FACE_MISMATCH'
         };
       }
+
     } catch (e) {
       print('❌ Lỗi điểm danh: $e');
       return {
-        'success': false,
-        'message': 'Lỗi điểm danh: $e',
+        'success': false, 
+        'message': 'Lỗi hệ thống: ${e.toString()}',
+        'errorCode': 'SYSTEM_ERROR'
       };
     }
   }
 
-  /// 🔹 Tìm sinh viên khớp từ database
-  Future<Map<String, dynamic>?> _findMatchingStudent(List<double> queryEmbedding) async {
-    try {
-      final students = await _firestoreService.queryDocuments<FaceDataModel>(
-        field: 'userRole',
-        isEqualTo: 'student',
-      );
-
-      double bestSimilarity = 0.6; // Ngưỡng tối thiểu
-      Map<String, dynamic>? bestMatch;
-
-      for (final faceData in students) {
-        // Lấy embedding chính (frontal) để so sánh
-        final frontalEmbedding = faceData.poseEmbeddings['frontal'];
-        if (frontalEmbedding != null && frontalEmbedding.isNotEmpty) {
-          final similarity = _cosineSimilarity(queryEmbedding, frontalEmbedding);
-          
-          if (similarity > bestSimilarity) {
-            bestSimilarity = similarity;
-            
-            // Lấy thông tin sinh viên
-            final student = await getStudentById(faceData.userId);
-            if (student != null) {
-              bestMatch = {
-                'studentId': student.id,
-                'name': student.name,
-                'email': student.email,
-                'className': student.classIds,
-                'similarity': similarity,
-                'imageUrl': student.faceUrls?.first,
-              };
-            }
-          }
-        }
-      }
-
-      print('🔍 Best match similarity: ${(bestSimilarity * 100).toStringAsFixed(1)}%');
-      return bestMatch;
-    } catch (e) {
-      print('❌ Lỗi tìm sinh viên khớp: $e');
-      return null;
-    }
-  }
-
-  /// 🔹 Ghi nhận điểm danh
   Future<void> _recordAttendance(Map<String, dynamic> student) async {
     try {
       final attendanceId = 'att_${DateTime.now().millisecondsSinceEpoch}';
-      
+      final String studentId = student['studentId']?.toString() ?? '';
+      final String studentName = student['name']?.toString() ?? 'Unknown';
+      final double similarity = (student['similarity'] ?? 0.0).toDouble();
+
       await FirebaseFirestore.instance.collection('attendance').doc(attendanceId).set({
-        'studentId': student['studentId'],
-        'name': student['name'],
-        'className': student['className'],
+        'id': attendanceId,
+        'studentId': studentId,
+        'name': studentName,
+        'className': student['className']?.toString() ?? 'Unknown',
         'timestamp': FieldValue.serverTimestamp(),
         'date': '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
-        'similarity': student['similarity'],
+        'similarity': similarity,
+        'similarityPercentage': (similarity * 100).toStringAsFixed(1),
         'type': 'face_recognition',
+        'status': _determineAttendanceStatus(DateTime.now()),
+        'confidence': _getConfidenceLevel(similarity),
       });
 
-      print('✅ Đã ghi nhận điểm danh cho ${student['name']}');
+      print('✅ Đã ghi nhận điểm danh cho $studentName - Similarity: ${(similarity * 100).toStringAsFixed(1)}%');
     } catch (e) {
       print('❌ Lỗi ghi nhận điểm danh: $e');
+      throw Exception('Lỗi ghi nhận điểm danh: $e');
     }
+  }
+
+  String _determineAttendanceStatus(DateTime attendanceTime) {
+    final now = DateTime.now();
+    final sessionStart = DateTime(now.year, now.month, now.day, 7, 0);
+    final lateThreshold = sessionStart.add(const Duration(minutes: 15));
+    
+    if (attendanceTime.isBefore(lateThreshold)) {
+      return 'present';
+    } else if (attendanceTime.isBefore(sessionStart.add(const Duration(minutes: 30)))) {
+      return 'late';
+    } else {
+      return 'absent';
+    }
+  }
+
+  String _getConfidenceLevel(double similarity) {
+    if (similarity >= 0.90) return 'very_high';
+    if (similarity >= 0.85) return 'high';
+    if (similarity >= 0.80) return 'medium';
+    return 'low';
   }
 
   // ==================== TIỆN ÍCH ====================
 
-  /// 🔹 Helper encode embeddings
-  Map<String, String> _encodeEmbeddings(Map<String, List<double>> embeddings) {
-    Map<String, String> result = {};
-    embeddings.forEach((pose, embedding) {
-      result[pose] = jsonEncode(embedding);
-    });
-    return result;
-  }
-
-  /// 🔹 Tính cosine similarity
   double _cosineSimilarity(List<double> a, List<double> b) {
+    if (a.length != b.length) return 0.0;
+    
     double dotProduct = 0;
     double normA = 0;
     double normB = 0;
@@ -520,23 +515,22 @@ class StudentService {
       normB += b[i] * b[i];
     }
     
+    if (normA == 0 || normB == 0) return 0.0;
     return dotProduct / (sqrt(normA) * sqrt(normB));
   }
 
-  // 🔹 QUAN TRỌNG: Sửa method này để kiểm tra chính xác
   Future<bool> hasRegisteredFace(String studentId) async {
     try {
       final student = await getStudentById(studentId);
       
-      // Kiểm tra cả 2 điều kiện
       bool hasFaceData = student?.isFaceRegistered == true;
       bool hasFaceUrls = student?.faceUrls?.isNotEmpty == true;
       
       print('🔍 Kiểm tra đăng ký khuôn mặt:');
-      print('   - Student ID: $studentId');
-      print('   - isFaceRegistered: ${student?.isFaceRegistered}');
-      print('   - faceUrls: ${student?.faceUrls?.length} ảnh');
-      print('   - Kết quả: ${hasFaceData && hasFaceUrls}');
+      print('   - Student ID: $studentId');
+      print('   - isFaceRegistered: ${student?.isFaceRegistered}');
+      print('   - faceUrls: ${student?.faceUrls?.length} ảnh');
+      print('   - Kết quả: ${hasFaceData && hasFaceUrls}');
       
       return hasFaceData && hasFaceUrls;
     } catch (e) {
@@ -545,26 +539,23 @@ class StudentService {
     }
   }
 
-  /// 🔹 Stream real-time thông tin sinh viên
   Stream<UserModel?> watchStudent(String studentId) {
     return _firestoreService.watchDocument<UserModel>(studentId);
   }
 
-  /// 🔹 Stream real-time face data
   Stream<FaceDataModel?> watchStudentFaceData(String studentId) {
     return _firestoreService.watchDocument<FaceDataModel>('face_$studentId');
   }
 
-  /// 🔹 Kiểm tra sinh viên tồn tại
   Future<bool> studentExists(String studentId) async {
     try {
       return await _firestoreService.documentExists<UserModel>(studentId);
     } catch (e) {
+      print('❌ Lỗi khi kiểm tra sinh viên tồn tại: $e');
       throw Exception('Lỗi khi kiểm tra sinh viên tồn tại: $e');
     }
   }
 
-  /// 🔹 Lấy sinh viên theo mã sinh viên
   Future<UserModel?> getStudentByCode(String studentCode) async {
     try {
       final students = await _firestoreService.queryDocuments<UserModel>(
@@ -573,113 +564,32 @@ class StudentService {
       );
       return students.isNotEmpty ? students.first : null;
     } catch (e) {
+      print('❌ Lỗi khi lấy sinh viên theo mã: $e');
       throw Exception('Lỗi khi lấy sinh viên theo mã: $e');
     }
   }
 
-  // ==================== METHOD CHO CAMERA ====================
+  // ==================== CLEANUP ====================
 
-  /// 🔹 LƯU THÔNG TIN ẢNH VÀO FIRESTORE (KHÔNG CÓ EMBEDDINGS)
-  Future<void> saveFaceImagesOnly({
-    required String studentId,
-    required Map<String, String> imageUrls,
-  }) async {
+  Future<void> cleanupTempFiles() async {
     try {
-      print('🔄 Đang lưu thông tin ảnh vào Firestore...');
-
-      // 1. Lấy thông tin sinh viên
-      final student = await getStudentById(studentId);
-      if (student == null) {
-        throw Exception('Không tìm thấy sinh viên $studentId');
+      final tempRef = _storage.ref().child('student_faces/temp_attendance');
+      final listResult = await tempRef.listAll();
+      
+      for (var item in listResult.items) {
+        try {
+          await item.delete();
+          print('✅ Đã xóa file tạm: ${item.name}');
+        } catch (e) {
+          print('⚠️ Không thể xóa file tạm: ${item.name}');
+        }
       }
-
-      // 2. Tạo FaceData với embeddings RỖNG
-      final faceDataId = 'face_$studentId';
-      FaceDataModel faceData = FaceDataModel(
-        id: faceDataId,
-        userId: studentId,
-        userEmail: student.email,
-        userRole: 'student',
-        poseImageUrls: imageUrls,
-        poseEmbeddings: {}, // embeddings RỖNG - để sau
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        isActive: true,
-        version: 1,
-      );
-
-      await _firestoreService.addDocument<FaceDataModel>(faceData);
-
-      // 3. Cập nhật UserModel
-      await _firestoreService.updateDocument<UserModel>(studentId, {
-        'faceUrls': imageUrls.values.toList(),
-        'isFaceRegistered': true,
-        'faceDataId': faceDataId,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-
-      print('✅ Đã lưu thông tin ảnh thành công!');
-      print('📸 URLs ảnh: ${imageUrls.values}');
     } catch (e) {
-      print('❌ Lỗi lưu thông tin ảnh: $e');
-      throw Exception('Lỗi khi lưu thông tin ảnh: $e');
+      print('⚠️ Lỗi khi cleanup temp files: $e');
     }
   }
 
-  /// 🔹 ĐĂNG KÝ KHUÔN MẶT ĐƠN GIẢN (CHỈ ẢNH)
-  Future<void> registerFaceImagesOnly({
-    required String studentId,
-    required File frontalImage,
-    required File leftImage,
-    required File rightImage,
-  }) async {
-    try {
-      print('🚀 Bắt đầu đăng ký khuôn mặt (ảnh only)...');
-
-      // 1. Upload ảnh lên Storage
-      // Tuy hàm uploadMultipleFaceImages trả về poseData, ta chỉ cần phần URLs
-      final Map<String, Map<String, String>> poseData = await uploadMultipleFaceImages(
-        studentId: studentId,
-        frontalImage: frontalImage,
-        leftImage: leftImage,
-        rightImage: rightImage,
-      );
-      
-      final Map<String, String> imageUrls = poseData.map((key, value) => MapEntry(key, value['url']!));
-
-
-      // 2. Lưu thông tin vào Firestore
-      await saveFaceImagesOnly(
-        studentId: studentId,
-        imageUrls: imageUrls,
-      );
-
-      print('🎉 ĐĂNG KÝ THÀNH CÔNG! Ảnh đã được lưu, embeddings để sau.');
-    } catch (e) {
-      print('❌ Lỗi đăng ký khuôn mặt: $e');
-      throw Exception('Lỗi đăng ký khuôn mặt: $e');
-    }
-  }
-
-  // 🔹 THÊM: Method kiểm tra nhanh (dùng trong login)
-  Future<bool> checkFaceRegistrationQuick(String studentId) async {
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users') // hoặc 'students' tùy collection của bạn
-          .doc(studentId)
-          .get();
-      
-      if (doc.exists) {
-        final data = doc.data();
-        bool isRegistered = data?['isFaceRegistered'] == true;
-        List faceUrls = data?['faceUrls'] ?? [];
-        
-        return isRegistered && faceUrls.length >= 3;
-      }
-      return false;
-    } catch (e) {
-      print('❌ Lỗi kiểm tra nhanh: $e');
-      return false;
-    }
+  void dispose() {
+    // Giải phóng tài nguyên nếu cần
   }
 }

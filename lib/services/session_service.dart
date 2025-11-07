@@ -191,11 +191,12 @@ class SessionService {
     }
   }
 
-  /// Điểm danh sinh viên
+  /// Điểm danh sinh viên - PHIÊN BẢN ĐÃ SỬA VỚI SIMILARITY
   Future<bool> markAttendance({
     required String sessionId,
     required String studentId,
     required String faceImageUrl,
+    double similarity = 0.0, // THÊM PARAMETER NÀY
   }) async {
     try {
       // Cập nhật session
@@ -204,21 +205,39 @@ class SessionService {
         'updated_at': FieldValue.serverTimestamp(),
       });
 
-      // Tạo attendance record
-      await FirebaseFirestore.instance.collection('attendance_records').add({
+      // Tạo attendance record với similarity
+      final attendanceData = {
         'session_id': sessionId,
         'student_id': studentId,
         'face_image_url': faceImageUrl,
         'timestamp': FieldValue.serverTimestamp(),
         'method': 'face_recognition',
         'status': 'present',
-      });
+      };
 
+      // Chỉ thêm similarity nếu > 0 (điểm danh bằng khuôn mặt)
+      if (similarity > 0) {
+        attendanceData['similarity'] = similarity;
+        attendanceData['similarity_percentage'] = (similarity * 100).toStringAsFixed(1);
+        attendanceData['confidence'] = _getConfidenceLevel(similarity);
+      }
+
+      await FirebaseFirestore.instance.collection('attendance_records').add(attendanceData);
+
+      print('✅ Đã điểm danh cho student $studentId với similarity: ${(similarity * 100).toStringAsFixed(1)}%');
       return true;
     } catch (e) {
       print("Lỗi khi điểm danh: $e");
       return false;
     }
+  }
+
+  /// Xác định độ tin cậy dựa trên similarity
+  String _getConfidenceLevel(double similarity) {
+    if (similarity >= 0.90) return 'very_high';
+    if (similarity >= 0.85) return 'high';
+    if (similarity >= 0.80) return 'medium';
+    return 'low';
   }
 
   /// Hủy điểm danh
@@ -315,6 +334,25 @@ class SessionService {
           snapshot.docs.map((doc) => doc.data()).toList());
     } catch (e) {
       print("Lỗi khi stream sessions theo range: $e");
+      return Stream.value([]);
+    }
+  }
+
+  /// Lấy lịch sử điểm danh của sinh viên
+  Stream<List<Map<String, dynamic>>> streamStudentAttendanceHistory(String studentId) {
+    try {
+      return FirebaseFirestore.instance
+          .collection('attendance_records')
+          .where('student_id', isEqualTo: studentId)
+          .orderBy('timestamp', descending: true)
+          .snapshots()
+          .map((snapshot) => snapshot.docs.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                data['id'] = doc.id;
+                return data;
+              }).toList());
+    } catch (e) {
+      print("Lỗi khi stream lịch sử điểm danh: $e");
       return Stream.value([]);
     }
   }
