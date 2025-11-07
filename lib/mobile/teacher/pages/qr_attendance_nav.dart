@@ -59,10 +59,8 @@ class _QRAttendanceNavigationState extends State<QRAttendanceNavigation> {
   }
 }
 
-// ======================= QR CONTENT (ĐÃ ĐỔ DỮ LIỆU) =======================
-
 class QRAttendanceContent extends StatefulWidget {
-  final String? sessionId; // nếu bạn muốn truyền từ ngoài vào
+  final String? sessionId;
   final VoidCallback? onHideQR;
 
   const QRAttendanceContent({super.key, this.sessionId, this.onHideQR});
@@ -107,9 +105,15 @@ class _QRAttendanceContentState extends State<QRAttendanceContent> {
 
         SessionModel? display;
         if (sessions.isNotEmpty) {
+          // *** THAY ĐỔI LOGIC TẠI ĐÂY ***
+          // Chỉ tìm buổi học ĐANG DIỄN RA.
+          // Nếu GV vào sớm, `isHappeningNow` sẽ là false, `display` sẽ là null
+          // và sẽ rơi vào `if (display == null)` ở dưới.
           display = sessions.firstWhereOrNull((s) => s.isHappeningNow);
-          display ??=
-              sessions.firstWhereOrNull((s) => s.startDateTime.isAfter(DateTime.now()));
+
+          // *** ĐÃ XÓA DÒNG NÀY ***
+          // display ??=
+          //     sessions.firstWhereOrNull((s) => s.startDateTime.isAfter(DateTime.now()));
         }
 
         if (isLoading) {
@@ -126,12 +130,17 @@ class _QRAttendanceContentState extends State<QRAttendanceContent> {
             child: Text('Lỗi tải lịch hôm nay: ${snapshot.error}'),
           );
         }
+
+        // Nếu `display == null` (vì GV vào sớm HOẶC đã hết buổi học)
+        // thì sẽ hiển thị thông báo này.
         if (display == null) {
           return const Padding(
             padding: EdgeInsets.symmetric(vertical: 24),
+            // *** THAY ĐỔI CÂU CHỮ CHO CHÍNH XÁC HƠN ***
             child: Text(
-              'Hôm nay chưa có buổi học nào đang diễn ra hoặc sắp tới.',
+              'Hiện tại không có buổi học nào đang diễn ra.',
               style: TextStyle(color: Colors.grey),
+              textAlign: TextAlign.center,
             ),
           );
         }
@@ -139,6 +148,8 @@ class _QRAttendanceContentState extends State<QRAttendanceContent> {
         // Sync trạng thái switch theo session (QR còn hạn -> đang diễn ra)
         _isAttendanceActive = display.isQrValid || display.isOngoing;
 
+        // Chỉ khi `display` có giá trị (tức là đang diễn ra),
+        // thì UI tạo QR mới được hiển thị.
         return _buildQRSection(context, teacher, display);
       },
     );
@@ -318,6 +329,10 @@ class _QRAttendanceContentState extends State<QRAttendanceContent> {
                 ),
               ),
               const SizedBox(height: 16),
+
+              // *** BẠN SẼ CẦN THÊM LOGIC ĐỂ TRUYỀN session.classId VÀO ĐÂY ***
+              // Tạm thời, tôi sẽ giữ placeholder cũ của bạn
+              // vì `_StudentListWidget` của tôi đã bị xóa.
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -327,10 +342,19 @@ class _QRAttendanceContentState extends State<QRAttendanceContent> {
                 ),
                 child: const Text(
                   'Chưa kết nối danh sách sinh viên.\n'
-                  'Gợi ý: lấy studentIds từ ClassModel -> load UserModel của SV -> lọc theo tìm kiếm -> hiển thị & gọi AttendanceService.upsert khi điểm danh thủ công.',
+                      'Gợi ý: lấy studentIds từ ClassModel -> load UserModel của SV -> lọc theo tìm kiếm -> hiển thị & gọi AttendanceService.upsert khi điểm danh thủ công.',
                   style: TextStyle(fontSize: 13, color: Colors.black54),
                 ),
               ),
+
+              // *** HOẶC, nếu bạn muốn dùng lại code _StudentListWidget
+              // (mà không có điểm danh thủ công), bạn cần truyền classId vào:
+              /*
+              _StudentListWidget(
+                classId: session.classId,
+                searchQuery: _searchQuery,
+              ),
+              */
             ],
           ),
         ),
@@ -526,3 +550,4 @@ class _QrCountdownWidgetState extends State<_QrCountdownWidget> {
     );
   }
 }
+

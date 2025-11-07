@@ -150,25 +150,21 @@ class SessionService {
 
     final qrData = session.generateQrData();
     final qrExpiry = DateTime.now().add(validity);
-
     await updateSessionData(sessionId, {
       'qr_code': qrData,
-      'qr_expiry': qrExpiry.toIso8601String(), // Lưu theo chuẩn của model
-      'status': SessionStatus.ongoing.name, // Chuyển trạng thái
+      'qr_expiry': qrExpiry.toIso8601String(),
+      'status': SessionStatus.ongoing.name,
     });
   }
 
   /// Điểm danh cho sinh viên (business logic)
   Future<void> markAttendance(String sessionId, String studentId) async {
-    // Dùng FieldValue.arrayUnion để đảm bảo an toàn khi nhiều
-    // sinh viên điểm danh cùng lúc và tránh trùng lặp.
     await _sessionsRef.doc(sessionId).update({
       'attendance_ids': FieldValue.arrayUnion([studentId]),
       'updated_at': FieldValue.serverTimestamp(),
     });
   }
 
-  /// Hủy điểm danh (nếu cần)
   Future<void> unmarkAttendance(String sessionId, String studentId) async {
     await _sessionsRef.doc(sessionId).update({
       'attendance_ids': FieldValue.arrayRemove([studentId]),
@@ -176,9 +172,6 @@ class SessionService {
     });
   }
 
-  // --- 4. DELETE (Xóa) ---
-
-  /// Xóa một session (và các session con nếu là lặp lại)
   Future<void> deleteSession(String sessionId, {bool deleteAllRecurring = false}) async {
     final session = await getSession(sessionId);
     if (session == null) return;

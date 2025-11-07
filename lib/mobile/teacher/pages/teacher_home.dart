@@ -136,8 +136,6 @@ class _TeacherHomeState extends State<TeacherHome> {
       ),
     );
   }
-
-  /// 2b. Card Thông báo mới (Giữ nguyên, vì đây là dữ liệu khác)
   Widget _buildNotificationCard() {
     return Container(
       padding: const EdgeInsets.all(16.0),
@@ -241,7 +239,6 @@ class _TeacherHomeState extends State<TeacherHome> {
           final idx = sessions.indexOf(display);
           if (idx >= 0) remainingCount = sessions.length - (idx + 1);
         }
-
         return Container(
           padding: const EdgeInsets.all(16.0),
           decoration: BoxDecoration(
