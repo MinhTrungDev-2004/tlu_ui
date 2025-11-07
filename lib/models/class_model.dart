@@ -1,4 +1,5 @@
 import '../../services/firestore_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ClassModel implements HasId {
   final String _id;
@@ -32,19 +33,21 @@ class ClassModel implements HasId {
   String get id => _id;
 
   factory ClassModel.fromMap(Map<String, dynamic> data, String id) {
+    print("ClassModel.fromMap -> data: $data"); // ✅ Dòng này giúp bạn debug
     return ClassModel(
       id: id,
-      name: _getString(data, 'name'),
-      departmentId: _getString(data, 'department_id'),
-      headTeacherId: _getString(data, 'head_teacher_id'), // ⭐ SỬA
-      courseIds: _getListString(data, 'course_ids'), // ⭐ SỬA
-      studentIds: _getListString(data, 'student_ids'),
-      sessionIds: _getListString(data, 'session_ids'),
-      createdAt: _getDateTime(data, 'created_at'),
+      name: _getString(data, 'name', 'Chưa đặt tên'),
+      departmentId: data['department_id']?.toString(),
+      headTeacherId: data['head_teacher_id']?.toString(),
+      courseIds: (data['course_ids'] as List?)?.map((e) => e.toString()).toList() ?? [],
+      studentIds: (data['student_ids'] as List?)?.map((e) => e.toString()).toList() ?? [],
+      sessionIds: (data['session_ids'] as List?)?.map((e) => e.toString()).toList() ?? [],
+      createdAt: _getDateTime(data, 'created_at') ?? DateTime.now(),
       updatedAt: _getDateTime(data, 'updated_at'),
       isActive: data['is_active'] ?? true,
     );
   }
+
 
   Map<String, dynamic> toMap() {
     return {
@@ -106,9 +109,11 @@ class ClassModel implements HasId {
     final value = data[key];
     if (value == null) return null;
     if (value is DateTime) return value;
+    if (value is Timestamp) return value.toDate();
     if (value is String) return DateTime.tryParse(value);
     return null;
   }
+
 
   // === BUSINESS LOGIC METHODS ===
   
