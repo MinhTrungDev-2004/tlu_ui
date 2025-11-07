@@ -17,7 +17,7 @@ class FirestoreService {
 
   String _getCollectionName<T>() {
     if (T == UserModel) return 'users';
-    if (T == AttendanceModel) return 'attendances';
+    if (T == AttendanceModel) return 'attendance_records'; // 🚨 SỬA: 'attendances' → 'attendance_records'
     if (T == ClassModel) return 'classes';
     if (T == CourseModel) return 'courses';
     if (T == FaceDataModel) return 'face_data';
@@ -26,7 +26,7 @@ class FirestoreService {
     throw Exception('Unknown model type: $T');
   }
 
-  /// 🔹 SỬA: Generic method để convert Map → Model
+  /// 🔹 Generic method để convert Map → Model
   T _convertToModel<T extends HasId>(Map<String, dynamic> data, String id) {
     if (T == UserModel) {
       return UserModel.fromMap(data, id) as T;
@@ -45,7 +45,7 @@ class FirestoreService {
     throw Exception('Unknown model type for conversion: $T');
   }
 
-  /// 🔹 SỬA: Helper method để extract data từ DocumentSnapshot an toàn
+  /// 🔹 Helper method để extract data từ DocumentSnapshot an toàn
   Map<String, dynamic> _extractDataFromDocument(DocumentSnapshot<Object?> doc) {
     final rawData = doc.data();
     final result = <String, dynamic>{'id': doc.id};
@@ -64,7 +64,7 @@ class FirestoreService {
     return result;
   }
 
-  /// 🔹 SỬA: Helper method cho QueryDocumentSnapshot
+  /// 🔹 Helper method cho QueryDocumentSnapshot
   Map<String, dynamic> _extractDataFromQueryDoc(QueryDocumentSnapshot<Object?> doc) {
     final rawData = doc.data();
     final result = <String, dynamic>{'id': doc.id};
@@ -82,13 +82,30 @@ class FirestoreService {
     return result;
   }
 
+  /// 🆕 THÊM: Method với custom collection name
+  Future<void> createDocument<T extends HasId>({
+    required String collection,
+    required Map<String, dynamic> data,
+    required String id,
+  }) async {
+    try {
+      await _db.collection(collection).doc(id).set(data);
+      print('✅ [FirestoreService] Đã tạo document: $collection/$id');
+    } catch (e) {
+      print('❌ [FirestoreService] Lỗi tạo document: $e');
+      rethrow;
+    }
+  }
+
   /// Thêm document vào Firestore
   Future<void> addDocument<T extends HasId>(T model, {String? customCollection}) async {
     try {
       final collectionName = customCollection ?? _getCollectionName<T>();
       await _db.collection(collectionName).doc(model.id).set(model.toMap());
+      print('✅ [FirestoreService] Đã thêm document: $collectionName/${model.id}');
     } catch (e) {
-      throw Exception('Error adding document: $e');
+      print('❌ [FirestoreService] Lỗi thêm document: $e');
+      rethrow;
     }
   }
 
@@ -98,32 +115,66 @@ class FirestoreService {
       final collectionName = _getCollectionName<T>();
       final doc = await _db.collection(collectionName).doc(id).get();
       
-      if (!doc.exists) return null;
+      if (!doc.exists) {
+        print('ℹ️ [FirestoreService] Document không tồn tại: $collectionName/$id');
+        return null;
+      }
       
       final Map<String, dynamic> data = _extractDataFromDocument(doc);
-      return _convertToModel<T>(data, id);
+      final result = _convertToModel<T>(data, id);
+      print('✅ [FirestoreService] Đã lấy document: $collectionName/$id');
+      return result;
     } catch (e) {
-      throw Exception('Error getting document: $e');
+      print('❌ [FirestoreService] Lỗi lấy document: $e');
+      rethrow;
+    }
+  }
+
+  /// 🆕 THÊM: Lấy document từ collection cụ thể
+  Future<T?> getDocumentFromCollection<T extends HasId>({
+    required String collection,
+    required String id,
+  }) async {
+    try {
+      final doc = await _db.collection(collection).doc(id).get();
+      
+      if (!doc.exists) {
+        print('ℹ️ [FirestoreService] Document không tồn tại: $collection/$id');
+        return null;
+      }
+      
+      final Map<String, dynamic> data = _extractDataFromDocument(doc);
+      final result = _convertToModel<T>(data, id);
+      print('✅ [FirestoreService] Đã lấy document: $collection/$id');
+      return result;
+    } catch (e) {
+      print('❌ [FirestoreService] Lỗi lấy document từ collection: $e');
+      rethrow;
     }
   }
 
   /// Lấy tất cả documents và trả về List<Model>
-  Future<List<T>> getAllDocuments<T extends HasId>() async {
+  Future<List<T>> getAllDocuments<T extends HasId>([String? collection]) async {
     try {
-      final collectionName = _getCollectionName<T>();
+      final collectionName = collection ?? _getCollectionName<T>();
       final snapshot = await _db.collection(collectionName).get();
       
-      return snapshot.docs.map((doc) {
+      final result = snapshot.docs.map((doc) {
         final Map<String, dynamic> data = _extractDataFromQueryDoc(doc);
         return _convertToModel<T>(data, doc.id);
       }).toList();
+      
+      print('✅ [FirestoreService] Đã lấy ${result.length} documents từ $collectionName');
+      return result;
     } catch (e) {
-      throw Exception('Error getting all documents: $e');
+      print('❌ [FirestoreService] Lỗi lấy all documents: $e');
+      rethrow;
     }
   }
 
   /// Lấy documents với query
   Future<List<T>> queryDocuments<T extends HasId>({
+    String? collection,
     String? field,
     dynamic isEqualTo,
     dynamic isNotEqualTo,
@@ -138,7 +189,7 @@ class FirestoreService {
     bool? isNull,
   }) async {
     try {
-      final collectionName = _getCollectionName<T>();
+      final collectionName = collection ?? _getCollectionName<T>();
       Query query = _db.collection(collectionName);
 
       if (field != null) {
@@ -178,12 +229,16 @@ class FirestoreService {
       }
 
       final snapshot = await query.get();
-      return snapshot.docs.map((doc) {
+      final result = snapshot.docs.map((doc) {
         final Map<String, dynamic> data = _extractDataFromQueryDoc(doc);
         return _convertToModel<T>(data, doc.id);
       }).toList();
+      
+      print('✅ [FirestoreService] Query $collectionName: ${result.length} documents');
+      return result;
     } catch (e) {
-      throw Exception('Error querying documents: $e');
+      print('❌ [FirestoreService] Lỗi query documents: $e');
+      rethrow;
     }
   }
 
@@ -192,8 +247,10 @@ class FirestoreService {
     try {
       final collectionName = _getCollectionName<T>();
       await _db.collection(collectionName).doc(id).update(updates);
+      print('✅ [FirestoreService] Đã cập nhật document: $collectionName/$id');
     } catch (e) {
-      throw Exception('Error updating document: $e');
+      print('❌ [FirestoreService] Lỗi cập nhật document: $e');
+      rethrow;
     }
   }
 
@@ -202,8 +259,10 @@ class FirestoreService {
     try {
       final collectionName = _getCollectionName<T>();
       await _db.collection(collectionName).doc(id).delete();
+      print('✅ [FirestoreService] Đã xóa document: $collectionName/$id');
     } catch (e) {
-      throw Exception('Error deleting document: $e');
+      print('❌ [FirestoreService] Lỗi xóa document: $e');
+      rethrow;
     }
   }
 
@@ -211,10 +270,12 @@ class FirestoreService {
   Stream<List<T>> watchCollection<T extends HasId>() {
     final collectionName = _getCollectionName<T>();
     return _db.collection(collectionName).snapshots().map((snapshot) {
-      return snapshot.docs.map((doc) {
+      final result = snapshot.docs.map((doc) {
         final Map<String, dynamic> data = _extractDataFromQueryDoc(doc);
         return _convertToModel<T>(data, doc.id);
       }).toList();
+      print('📡 [FirestoreService] Stream update: ${result.length} documents từ $collectionName');
+      return result;
     });
   }
 
@@ -222,13 +283,18 @@ class FirestoreService {
   Stream<T?> watchDocument<T extends HasId>(String id) {
     final collectionName = _getCollectionName<T>();
     return _db.collection(collectionName).doc(id).snapshots().map((doc) {
-      if (!doc.exists) return null;
+      if (!doc.exists) {
+        print('📡 [FirestoreService] Stream: Document $collectionName/$id không tồn tại');
+        return null;
+      }
       final Map<String, dynamic> data = _extractDataFromDocument(doc);
-      return _convertToModel<T>(data, doc.id);
+      final result = _convertToModel<T>(data, doc.id);
+      print('📡 [FirestoreService] Stream update: $collectionName/$id');
+      return result;
     });
   }
 
-  /// 🔹 THÊM: Stream query documents với điều kiện
+  /// 🔹 Stream query documents với điều kiện
   Stream<List<T>> watchQueryDocuments<T extends HasId>({
     String? field,
     dynamic isEqualTo,
@@ -284,10 +350,12 @@ class FirestoreService {
       }
 
       return query.snapshots().map((snapshot) {
-        return snapshot.docs.map((doc) {
+        final result = snapshot.docs.map((doc) {
           final Map<String, dynamic> data = _extractDataFromQueryDoc(doc);
           return _convertToModel<T>(data, doc.id);
         }).toList();
+        print('📡 [FirestoreService] Stream query: ${result.length} documents từ $collectionName');
+        return result;
       });
     } catch (e) {
       throw Exception('Error streaming query documents: $e');
@@ -298,7 +366,17 @@ class FirestoreService {
   Future<bool> documentExists<T extends HasId>(String id) async {
     final collectionName = _getCollectionName<T>();
     final doc = await _db.collection(collectionName).doc(id).get();
-    return doc.exists;
+    final exists = doc.exists;
+    print('ℹ️ [FirestoreService] Document $collectionName/$id ${exists ? 'tồn tại' : 'không tồn tại'}');
+    return exists;
+  }
+
+  /// 🆕 THÊM: Kiểm tra document tồn tại trong collection cụ thể
+  Future<bool> documentExistsInCollection(String collection, String id) async {
+    final doc = await _db.collection(collection).doc(id).get();
+    final exists = doc.exists;
+    print('ℹ️ [FirestoreService] Document $collection/$id ${exists ? 'tồn tại' : 'không tồn tại'}');
+    return exists;
   }
 
   /// Batch write - thêm/update nhiều documents cùng lúc
@@ -312,6 +390,7 @@ class FirestoreService {
     }
     
     await batch.commit();
+    print('✅ [FirestoreService] Đã batch write ${documents.length} documents');
   }
 
   /// 🔹 Lấy documents với sắp xếp
@@ -333,12 +412,16 @@ class FirestoreService {
       }
 
       final snapshot = await query.get();
-      return snapshot.docs.map((doc) {
+      final result = snapshot.docs.map((doc) {
         final Map<String, dynamic> data = _extractDataFromQueryDoc(doc);
         return _convertToModel<T>(data, doc.id);
       }).toList();
+      
+      print('✅ [FirestoreService] Đã lấy ${result.length} documents với order từ $collectionName');
+      return result;
     } catch (e) {
-      throw Exception('Error getting documents with order: $e');
+      print('❌ [FirestoreService] Lỗi lấy documents với order: $e');
+      rethrow;
     }
   }
 
@@ -359,8 +442,23 @@ class FirestoreService {
       }
 
       await batch.commit();
+      print('✅ [FirestoreService] Đã xóa ${snapshot.docs.length} documents từ $collectionName');
     } catch (e) {
-      throw Exception('Error deleting documents where: $e');
+      print('❌ [FirestoreService] Lỗi xóa documents where: $e');
+      rethrow;
     }
   }
+
+  /// 🆕 THÊM: Debug method để kiểm tra collection names
+  void debugCollectionNames() {
+    print('🔍 [FirestoreService] Debug Collection Names:');
+    print('   - UserModel: ${_getCollectionName<UserModel>()}');
+    print('   - AttendanceModel: ${_getCollectionName<AttendanceModel>()}');
+    print('   - ClassModel: ${_getCollectionName<ClassModel>()}');
+    print('   - CourseModel: ${_getCollectionName<CourseModel>()}');
+    print('   - FaceDataModel: ${_getCollectionName<FaceDataModel>()}');
+    print('   - SessionModel: ${_getCollectionName<SessionModel>()}');
+  }
+  
+  
 }

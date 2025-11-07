@@ -78,7 +78,7 @@ class SessionModel implements HasId {
     return {
       'course_id': courseId,
       'class_id': classId,
-      'date': Timestamp.fromDate(date), // ⭐ SỬA: Lưu dưới dạng Timestamp
+      'date': Timestamp.fromDate(date),
       'start_time': startTime,
       'end_time': endTime,
       if (room != null && room!.isNotEmpty) 'room': room,
@@ -89,7 +89,7 @@ class SessionModel implements HasId {
       if (qrExpiry != null) 'qr_expiry': qrExpiry!.toIso8601String(),
       'is_recurring': isRecurring,
       if (repeatDays != null) 'repeat_days': repeatDays, 
-      if (repeatUntil != null) 'repeat_until': Timestamp.fromDate(repeatUntil!), // ⭐ SỬA: Lưu dưới dạng Timestamp
+      if (repeatUntil != null) 'repeat_until': Timestamp.fromDate(repeatUntil!),
       if (parentSessionId != null) 'parent_session_id': parentSessionId,
       'created_at': createdAt != null ? Timestamp.fromDate(createdAt!) : FieldValue.serverTimestamp(),
       'updated_at': FieldValue.serverTimestamp(),
@@ -143,7 +143,7 @@ class SessionModel implements HasId {
     if (date == null) return DateTime.now();
     if (date is DateTime) return date;
     if (date is String) return DateTime.tryParse(date) ?? DateTime.now();
-    if (date is Timestamp) return date.toDate(); // Thêm dòng này nếu chưa có
+    if (date is Timestamp) return date.toDate();
     return DateTime.now();
   }
 
@@ -222,6 +222,43 @@ class SessionModel implements HasId {
     );
   }
 
+  /// 🆕 KIỂM TRA THỜI GIAN ĐIỂM DANH (MUỘN/ĐÚNG GIỜ)
+  AttendanceStatus get currentAttendanceStatus {
+    final now = DateTime.now();
+    final sessionStart = startDateTime;
+    final sessionEnd = endDateTime;
+
+    // Nếu trước giờ bắt đầu hoặc trong 15 phút đầu -> đúng giờ
+    if (now.isBefore(sessionStart) || 
+        now.difference(sessionStart).inMinutes <= 15) {
+      return AttendanceStatus.present;
+    }
+    
+    // Nếu sau 15 phút nhưng trước khi kết thúc -> muộn
+    if (now.isBefore(sessionEnd)) {
+      return AttendanceStatus.late;
+    }
+    
+    // Sau khi kết thúc -> vắng
+    return AttendanceStatus.absent;
+  }
+
+  /// 🆕 KIỂM TRA CÓ THỂ ĐIỂM DANH KHÔNG
+  String? get canAttendReason {
+    final now = DateTime.now();
+    
+    if (isCancelled) return 'Buổi học đã bị hủy';
+    if (isCompleted) return 'Buổi học đã kết thúc';
+    if (now.isBefore(startDateTime)) return 'Buổi học chưa bắt đầu';
+    if (now.isAfter(endDateTime)) return 'Buổi học đã kết thúc';
+    if (qrCode != null && !isQrValid) return 'Mã QR đã hết hạn';
+    
+    return null; // Có thể điểm danh
+  }
+
+  /// 🆕 KIỂM TRA CÓ THỂ ĐIỂM DANH KHÔNG (boolean)
+  bool get canAttend => canAttendReason == null;
+
   /// Format thời gian đẹp cho hiển thị
   String get timeDisplay {
     return '$startTime - $endTime';
@@ -230,6 +267,13 @@ class SessionModel implements HasId {
   /// Format ngày tháng đẹp
   String get dateDisplay {
     return '${date.day}/${date.month}/${date.year}';
+  }
+
+  /// 🆕 Format ngày tháng tiếng Việt
+  String get dateDisplayVietnamese {
+    final vietnameseDays = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
+    final dayOfWeek = vietnameseDays[date.weekday % 7];
+    return '$dayOfWeek, ${date.day} tháng ${date.month}, ${date.year}';
   }
 
   /// Kiểm tra trạng thái
@@ -284,6 +328,16 @@ class SessionModel implements HasId {
     return endDateTime.difference(startDateTime).inMinutes;
   }
 
+  /// 🆕 Tính thời gian còn lại đến khi bắt đầu
+  Duration get timeUntilStart {
+    return startDateTime.difference(DateTime.now());
+  }
+
+  /// 🆕 Tính thời gian còn lại đến khi kết thúc
+  Duration get timeUntilEnd {
+    return endDateTime.difference(DateTime.now());
+  }
+
   /// Kiểm tra có phải session lặp không
   bool get isRecurrence => parentSessionId != null;
 
@@ -329,6 +383,23 @@ class SessionModel implements HasId {
     return jsonEncode(qrData);
   }
 
+  /// 🆕 Lấy thông tin trạng thái điểm danh hiện tại
+  Map<String, dynamic> getAttendanceInfo(String studentId) {
+    final canAttendReason = this.canAttendReason;
+    final hasAttended = isStudentAttended(studentId);
+    final currentStatus = currentAttendanceStatus;
+
+    return {
+      'canAttend': canAttendReason == null && !hasAttended,
+      'hasAttended': hasAttended,
+      'canAttendReason': canAttendReason,
+      'currentStatus': currentStatus,
+      'isLate': currentStatus == AttendanceStatus.late,
+      'isOnTime': currentStatus == AttendanceStatus.present,
+      'isAbsent': currentStatus == AttendanceStatus.absent,
+    };
+  }
+
   @override
   String toString() {
     return 'SessionModel(id: $id, course: $courseId, class: $classId, date: $dateDisplay, time: $timeDisplay, status: $status)';
@@ -349,4 +420,47 @@ enum SessionStatus {
   ongoing,    // Đang diễn ra
   done,       // Đã kết thúc
   cancelled,  // Đã hủy
+}
+
+// 🆕 THÊM: Enum cho trạng thái điểm danh
+enum AttendanceStatus {
+  present,  // Có mặt (đúng giờ)
+  late,     // Muộn
+  absent,   // Vắng
+}
+
+// 🆕 THÊM: Extension cho AttendanceStatus
+extension AttendanceStatusExtension on AttendanceStatus {
+  String get displayText {
+    switch (this) {
+      case AttendanceStatus.present:
+        return 'Có mặt';
+      case AttendanceStatus.late:
+        return 'Muộn';
+      case AttendanceStatus.absent:
+        return 'Vắng';
+    }
+  }
+
+  Color get color {
+    switch (this) {
+      case AttendanceStatus.present:
+        return Colors.green;
+      case AttendanceStatus.late:
+        return Colors.orange;
+      case AttendanceStatus.absent:
+        return Colors.red;
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case AttendanceStatus.present:
+        return Icons.check_circle;
+      case AttendanceStatus.late:
+        return Icons.access_time;
+      case AttendanceStatus.absent:
+        return Icons.cancel;
+    }
+  }
 }
