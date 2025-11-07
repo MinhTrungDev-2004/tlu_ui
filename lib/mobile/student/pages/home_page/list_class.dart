@@ -1,35 +1,79 @@
 import 'package:flutter/material.dart';
 import '../../../../models/session_model.dart';
+import '../../../../models/course_model.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ListClassScreen extends StatelessWidget {
-  final List<SessionModel> sessions;
+  final List<SessionWithCourse> sessionsWithCourse;
   final DateTime selectedDate;
 
   const ListClassScreen({
     super.key,
-    required this.sessions,
+    required this.sessionsWithCourse,
     required this.selectedDate,
   });
+
+  factory ListClassScreen.fromSessions({
+    required List<SessionModel> sessions,
+    required DateTime selectedDate,
+  }) {
+    final sessionsWithCourse = sessions.map((session) => SessionWithCourse(
+      session: session,
+      course: null,
+    )).toList();
+
+    return ListClassScreen(
+      sessionsWithCourse: sessionsWithCourse,
+      selectedDate: selectedDate,
+    );
+  }
 
   Future<String> _getLecturerName(String? lecturerId) async {
     if (lecturerId == null || lecturerId.isEmpty) return 'Chưa có giảng viên';
     try {
-      final doc =
-          await FirebaseFirestore.instance.collection('users').doc(lecturerId).get();
+      final doc = await FirebaseFirestore.instance.collection('users').doc(lecturerId).get();
       if (!doc.exists) return 'Không tìm thấy';
       final data = doc.data();
       return data?['name'] ?? data?['fullName'] ?? data?['displayName'] ?? 'Không rõ';
     } catch (e) {
-      print('❌ Lỗi khi lấy tên giảng viên: $e');
       return 'Lỗi';
+    }
+  }
+
+  Future<String> _getCourseName(String courseId) async {
+    if (courseId.isEmpty) return 'Không xác định';
+    try {
+      final doc = await FirebaseFirestore.instance.collection('courses').doc(courseId).get();
+      if (!doc.exists) return 'Môn học không tồn tại';
+      final data = doc.data();
+      return data?['name'] ?? data?['course_name'] ?? courseId;
+    } catch (e) {
+      return courseId;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final sortedSessions = List<SessionModel>.from(sessions)
-      ..sort((a, b) => a.startDateTime.compareTo(b.startDateTime));
+    // 🔥 SỬA: Sắp xếp theo thứ tự ưu tiên màu
+    final sortedSessions = List<SessionWithCourse>.from(sessionsWithCourse)
+      ..sort((a, b) {
+        // Ưu tiên theo trạng thái: Đang diễn ra → Sắp diễn ra → Đã kết thúc
+        final statusOrder = {
+          SessionStatus.ongoing: 1,    // Xanh lá - cao nhất
+          SessionStatus.scheduled: 2,  // Đỏ - giữa
+          SessionStatus.done: 3,       // Xanh nước biển - thấp nhất
+        };
+        
+        final aOrder = statusOrder[a.session.status] ?? 4;
+        final bOrder = statusOrder[b.session.status] ?? 4;
+        
+        // Nếu cùng trạng thái, sắp xếp theo thời gian
+        if (aOrder == bOrder) {
+          return a.session.startDateTime.compareTo(b.session.startDateTime);
+        }
+        
+        return aOrder.compareTo(bOrder);
+      });
 
     if (sortedSessions.isEmpty) {
       return const Center(
@@ -44,14 +88,29 @@ class ListClassScreen extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       itemCount: sortedSessions.length,
       itemBuilder: (context, index) {
-        return _buildSessionCard(sortedSessions[index], index);
+        return _buildSessionCard(sortedSessions[index]);
       },
     );
   }
 
-  Widget _buildSessionCard(SessionModel session, int index) {
-    final borderColors = [Colors.green, Colors.red, Colors.blue];
-    final borderColor = borderColors[index % borderColors.length];
+  Widget _buildSessionCard(SessionWithCourse sessionWithCourse) {
+    final session = sessionWithCourse.session;
+
+    // 🎨 Xác định màu theo trạng thái
+    Color borderColor;
+    switch (session.status) {
+      case SessionStatus.ongoing:
+        borderColor = Colors.green;      // Xanh lá - Đang diễn ra
+        break;
+      case SessionStatus.scheduled:
+        borderColor = Colors.red;        // Đỏ - Sắp diễn ra
+        break;
+      case SessionStatus.done:
+        borderColor = Colors.blue;       // Xanh nước biển - Đã kết thúc
+        break;
+      default:
+        borderColor = Colors.grey;
+    }
 
     return Card(
       elevation: 0,
@@ -65,92 +124,55 @@ class ListClassScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Môn học
-            Text(
-              session.courseId,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: borderColor,
-              ),
-            ),
+            _buildCourseNameSection(sessionWithCourse, borderColor),
             const SizedBox(height: 8),
 
-            // Mã lớp + Ngày học
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildInfoRow(
-                  icon: Icons.class_outlined,
-                  text: session.classId,
-                ),
+                _buildInfoRow(icon: Icons.class_outlined, text: session.classId),
                 Text(
                   'Ngày ${session.dateDisplay}',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Colors.black54,
-                  ),
+                  style: const TextStyle(fontSize: 13, color: Colors.black54),
                 ),
               ],
             ),
             const SizedBox(height: 4),
-
-            // Phòng học
             _buildInfoRow(
               icon: Icons.location_on_outlined,
               text: session.room ?? 'Chưa có phòng',
             ),
             const SizedBox(height: 8),
 
-            // Giảng viên + Giờ học
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Giảng viên
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Giảng viên',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.black54,
-                      ),
-                    ),
+                    const Text('Giảng viên',
+                        style: TextStyle(fontSize: 13, color: Colors.black54)),
                     const SizedBox(height: 2),
-
-                    // ✅ Hiển thị tên giảng viên từ Firestore
                     FutureBuilder<String>(
                       future: _getLecturerName(session.lecturerId),
                       builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Text('Đang tải...',
-                              style: TextStyle(fontSize: 14, color: Colors.black54));
-                        }
                         return Text(
-                          snapshot.data ?? 'Không rõ',
+                          snapshot.data ?? 'Đang tải...',
                           style: const TextStyle(
                             fontSize: 14,
-                            color: Colors.black87,
                             fontWeight: FontWeight.w500,
+                            color: Colors.black87,
                           ),
                         );
                       },
                     ),
                   ],
                 ),
-
-                // Giờ học
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    const Text(
-                      'Thời gian',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.black54,
-                      ),
-                    ),
+                    const Text('Thời gian',
+                        style: TextStyle(fontSize: 13, color: Colors.black54)),
                     const SizedBox(height: 2),
                     Text(
                       session.timeDisplay,
@@ -164,13 +186,68 @@ class ListClassScreen extends StatelessWidget {
                 ),
               ],
             ),
-
-            // ⭐ THÊM: Trạng thái buổi học
             const SizedBox(height: 8),
             _buildSessionStatus(session),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildCourseNameSection(SessionWithCourse sessionWithCourse, Color borderColor) {
+    if (sessionWithCourse.course != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            sessionWithCourse.courseName,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: borderColor,
+            ),
+          ),
+          if (sessionWithCourse.courseCode.isNotEmpty && 
+              sessionWithCourse.courseCode != sessionWithCourse.session.courseId) ...[
+            const SizedBox(height: 2),
+            Text(
+              'Mã môn: ${sessionWithCourse.courseCode}',
+              style: const TextStyle(
+                fontSize: 12,
+                color: Colors.black54,
+              ),
+            ),
+          ],
+        ],
+      );
+    }
+
+    return FutureBuilder<String>(
+      future: _getCourseName(sessionWithCourse.session.courseId),
+      builder: (context, snapshot) {
+        final courseName = snapshot.data ?? sessionWithCourse.session.courseId;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              courseName,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: borderColor,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Mã môn: ${sessionWithCourse.session.courseId}',
+              style: const TextStyle(
+                fontSize: 12,
+                color: Colors.black54,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -181,41 +258,40 @@ class ListClassScreen extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           text,
-          style: const TextStyle(
-            fontSize: 13,
-            color: Colors.black87,
-          ),
+          style: const TextStyle(fontSize: 13, color: Colors.black87),
         ),
       ],
     );
   }
 
-  // ⭐ THÊM: Hiển thị trạng thái buổi học
   Widget _buildSessionStatus(SessionModel session) {
     Color statusColor;
     String statusText;
     IconData statusIcon;
 
     switch (session.status) {
-      case SessionStatus.scheduled:
-        statusColor = Colors.blue;
-        statusText = 'Sắp diễn ra';
-        statusIcon = Icons.schedule;
       case SessionStatus.ongoing:
         statusColor = Colors.green;
         statusText = 'Đang diễn ra';
         statusIcon = Icons.play_arrow;
+        break;
+      case SessionStatus.scheduled:
+        statusColor = Colors.red;
+        statusText = 'Sắp diễn ra';
+        statusIcon = Icons.schedule;
+        break;
       case SessionStatus.done:
-        statusColor = Colors.grey;
+        statusColor = Colors.blue;
         statusText = 'Đã kết thúc';
         statusIcon = Icons.check_circle;
-      case SessionStatus.cancelled:
-        statusColor = Colors.red;
-        statusText = 'Đã hủy';
-        statusIcon = Icons.cancel;
+        break;
+      default:
+        statusColor = Colors.grey;
+        statusText = 'Không xác định';
+        statusIcon = Icons.help_outline;
     }
 
-    // ⭐ THÊM: Hiển thị thông báo đặc biệt
+    // 🔥 THÊM: Highlight đặc biệt cho buổi học đang diễn ra
     if (session.isHappeningNow) {
       statusColor = Colors.orange;
       statusText = 'ĐANG DIỄN RA NGAY BÂY GIỜ';
@@ -246,4 +322,19 @@ class ListClassScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+// ✅ Model kết hợp Session + Course
+class SessionWithCourse {
+  final SessionModel session;
+  final CourseModel? course;
+
+  SessionWithCourse({
+    required this.session,
+    required this.course,
+  });
+
+  String get courseName => course?.name ?? 'Đang tải...';
+  String get courseCode => course?.courseCode ?? session.courseId;
+  String get room => session.room ?? 'Chưa có phòng';
 }

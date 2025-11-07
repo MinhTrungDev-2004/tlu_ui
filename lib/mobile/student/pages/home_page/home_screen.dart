@@ -22,7 +22,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final DateTime _selectedDate = DateTime.now();
   final ClassService _classService = ClassService();
   
-  String? _studentId; // Thay vì cứng studentId
+  String? _studentId;
   List<SessionModel> _todaySessions = [];
   bool _isLoading = true;
 
@@ -38,11 +38,10 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      // Lấy user hiện tại từ Firebase Auth
       final User? user = FirebaseAuth.instance.currentUser;
       
       if (user != null) {
-        _studentId = user.uid; // Sử dụng UID thực tế
+        _studentId = user.uid;
         print('👤 User UID: $_studentId');
         
         await _loadTodaySessions();
@@ -109,7 +108,6 @@ class _HomeScreenState extends State<HomeScreen> {
     await _loadTodaySessions();
   }
 
-  // Xóa didChangeDependencies và build pages trong build method
   List<Widget> get _pages {
     return [
       _buildHomeContent(),
@@ -132,7 +130,8 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
     
-    return ListClassScreen(
+    // 🔥 SỬA: Dùng constructor fallback
+    return ListClassScreen.fromSessions(
       sessions: _todaySessions,
       selectedDate: _selectedDate,
     );

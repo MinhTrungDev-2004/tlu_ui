@@ -233,26 +233,31 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
         throw Exception('Thiếu ảnh để đăng ký');
       }
 
-      // 🔹 HIỆN LOADING KHI UPLOAD
+      // 🔹 HIỆN LOADING KHI UPLOAD VÀ TRÍCH XUẤT EMBEDDINGS
       if (mounted) {
         showDialog(
           context: context,
           barrierDismissible: false,
-          builder: (context) => const AlertDialog(
+          builder: (context) => AlertDialog(
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 CircularProgressIndicator(),
                 SizedBox(height: 16),
-                Text('Đang hoàn tất đăng kí...'),
+                Text('Đang đăng kí khuôn mặt...'),
+                SizedBox(height: 8),
+                Text(
+                  'Quá trình này có thể mất vài giây',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
               ],
             ),
           ),
         );
       }
 
-      // 🔹 GỌI SERVICE ĐĂNG KÝ KHUÔN MẶT
-      await _studentService.registerFaceImagesOnly(
+      // 🔹 GỌI SERVICE ĐĂNG KÝ KHUÔN MẶT VỚI EMBEDDINGS
+      await _studentService.registerFaceWithEmbeddings(
         studentId: widget.userId!,
         frontalImage: _capturedImages['frontal']!,
         leftImage: _capturedImages['left']!,
@@ -372,7 +377,7 @@ class _FaceCameraScreenState extends State<FaceCameraScreen> {
                     _instructionText,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                      color: Colors.black,
+                      color: Colors.black, // 🔹 LUÔN MÀU ĐEN
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
                     ),

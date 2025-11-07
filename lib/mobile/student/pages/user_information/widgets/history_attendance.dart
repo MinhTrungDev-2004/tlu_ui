@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../register_face/widgets/main_appbar.dart';
 import '../../../../../models/attendance_model.dart';
 import '../../../../../services/student/history_service.dart';
@@ -12,24 +13,99 @@ class AttendanceHistoryScreen extends StatefulWidget {
 
 class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
   String selectedFilter = "Tất cả";
-  late Future<List<AttendanceHistory>> _historyFuture;
-  late Future<Map<String, dynamic>> _statsFuture;
   final AttendanceHistoryService _service = AttendanceHistoryService();
   
-  // Giả sử bạn có studentId từ auth hoặc params
-  final String studentId = "student_123"; // Thay bằng studentId thực tế
+  // 🔥 SỬA HOÀN TOÀN: State management đơn giản
+  String? _studentId;
+  bool _isLoading = true;
+  bool _hasError = false;
+  List<AttendanceHistory> _historyData = [];
+  Map<String, dynamic> _statsData = {
+    'total': 0,
+    'present': 0,
+    'absent': 0,
+    'late': 0,
+    'attendanceRate': 0.0,
+  };
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _initializeData();
   }
 
-  void _loadData() {
+  Future<void> _initializeData() async {
+    try {
+      print('🎬 INIT: Initializing attendance history screen');
+      
+      // 1. Lấy user từ Firebase Auth
+      final User? user = FirebaseAuth.instance.currentUser;
+      
+      if (user == null) {
+        print('❌ No user logged in');
+        setState(() {
+          _isLoading = false;
+          _hasError = true;
+        });
+        return;
+      }
+
+      _studentId = user.uid;
+      print('✅ User found: $_studentId');
+
+      // 2. Load data
+      await _loadData();
+      
+    } catch (e) {
+      print('💥 Error initializing: $e');
+      setState(() {
+        _isLoading = false;
+        _hasError = true;
+      });
+    }
+  }
+
+  Future<void> _loadData() async {
+    if (_studentId == null) return;
+
     setState(() {
-      _historyFuture = _service.getStudentAttendanceHistory(studentId);
-      _statsFuture = _service.getAttendanceStats(studentId);
+      _isLoading = true;
+      _hasError = false;
     });
+
+    try {
+      print('🔄 Loading attendance data...');
+      
+      // 🔥 SỬA: Dùng await để đảm bảo load xong mới update UI
+      final history = await _service.getStudentAttendanceHistory(_studentId!);
+      final stats = await _service.getAttendanceStats(_studentId!);
+      
+      print('✅ Data loaded successfully: ${history.length} items');
+      
+      setState(() {
+        _historyData = history;
+        _statsData = stats;
+        _isLoading = false;
+        _hasError = false;
+      });
+      
+    } catch (e) {
+      print('💥 Error loading data: $e');
+      setState(() {
+        _isLoading = false;
+        _hasError = true;
+      });
+    }
+  }
+
+  void _onFilterChanged(String filter) {
+    setState(() {
+      selectedFilter = filter;
+    });
+  }
+
+  Future<void> _refreshData() async {
+    await _loadData();
   }
 
   @override
@@ -41,24 +117,41 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
         title: "Lịch sử điểm danh",
         showBack: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // 🔹 Thẻ thống kê chuyên cần
-            _buildStatisticsCard(),
+      body: _buildBody(),
+    );
+  }
 
-            const SizedBox(height: 16),
+  Widget _buildBody() {
+    // 🔥 SỬA: Logic hiển thị đơn giản
+    if (_isLoading) {
+      return _buildLoadingState();
+    }
 
-            // 🔹 Bộ lọc
-            _buildFilterCard(),
+    if (_hasError) {
+      return _buildErrorState();
+    }
 
-            const SizedBox(height: 24),
+    if (_studentId == null) {
+      return _buildNoUserState();
+    }
 
-            // 🔹 Danh sách lịch sử điểm danh
-            _buildHistoryList(),
-          ],
-        ),
+    return RefreshIndicator(
+      onRefresh: _refreshData,
+      child: _buildContent(),
+    );
+  }
+
+  Widget _buildContent() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          _buildStatisticsCard(),
+          const SizedBox(height: 16),
+          _buildFilterCard(),
+          const SizedBox(height: 24),
+          _buildHistoryList(),
+        ],
       ),
     );
   }
@@ -67,93 +160,12 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
   // 🔸 WIDGET: Thống kê chuyên cần
   // ======================
   Widget _buildStatisticsCard() {
-    return FutureBuilder<Map<String, dynamic>>(
-      future: _statsFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _buildStatisticsLoading();
-        }
+    final total = _statsData['total'] as int;
+    final present = _statsData['present'] as int;
+    final absent = _statsData['absent'] as int;
+    final lateCount = _statsData['late'] as int;
+    final attendanceRate = _statsData['attendanceRate'] as double;
 
-        if (snapshot.hasError) {
-          return _buildStatisticsError();
-        }
-
-        final stats = snapshot.data ?? {
-          'total': 0,
-          'present': 0,
-          'absent': 0,
-          'late': 0,
-          'attendanceRate': 0.0,
-        };
-
-        final total = stats['total'] as int;
-        final present = stats['present'] as int;
-        final absent = stats['absent'] as int;
-        final lateCount = stats['late'] as int;
-        final attendanceRate = stats['attendanceRate'] as double;
-
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: _cardDecoration(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "Thống kê chuyên cần",
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 18,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  Column(
-                    children: [
-                      Text(
-                        "${attendanceRate.toStringAsFixed(1)}%",
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: _getRateColor(attendanceRate),
-                        ),
-                      ),
-                      const Text("Tỷ lệ có mặt", style: TextStyle(fontSize: 14)),
-                    ],
-                  ),
-                  Column(
-                    children: [
-                      Text(
-                        "$total",
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
-                      ),
-                      const Text("Tổng buổi học", style: TextStyle(fontSize: 14)),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _statusBox("Có mặt", Colors.green, present),
-                  _statusBox("Muộn", Colors.amber, lateCount),
-                  _statusBox("Vắng", Colors.red, absent),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildStatisticsLoading() {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: _cardDecoration(),
@@ -173,69 +185,40 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
             children: [
               Column(
                 children: [
-                  Container(
-                    width: 60,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(6),
+                  Text(
+                    "${attendanceRate.toStringAsFixed(1)}%",
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: _getRateColor(attendanceRate),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Container(
-                    width: 80,
-                    height: 16,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
+                  const Text("Tỷ lệ có mặt", style: TextStyle(fontSize: 14)),
                 ],
               ),
               Column(
                 children: [
-                  Container(
-                    width: 40,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(6),
+                  Text(
+                    "$total",
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Container(
-                    width: 80,
-                    height: 16,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
+                  const Text("Tổng buổi học", style: TextStyle(fontSize: 14)),
                 ],
               ),
             ],
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatisticsError() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: _cardDecoration(),
-      child: Column(
-        children: [
-          const Icon(Icons.error_outline, color: Colors.red, size: 40),
-          const SizedBox(height: 8),
-          const Text(
-            "Lỗi tải dữ liệu",
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          ElevatedButton(
-            onPressed: _loadData,
-            child: const Text("Thử lại"),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _statusBox("Có mặt", Colors.green, present),
+              _statusBox("Muộn", Colors.amber, lateCount),
+              _statusBox("Vắng", Colors.red, absent),
+            ],
           ),
         ],
       ),
@@ -287,9 +270,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    onPressed: () {
-                      setState(() => selectedFilter = filter);
-                    },
+                    onPressed: () => _onFilterChanged(filter),
                     child: Text(
                       filter,
                       style: TextStyle(
@@ -312,62 +293,18 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
   // 🔸 WIDGET: Danh sách lịch sử
   // ======================
   Widget _buildHistoryList() {
-    return FutureBuilder<List<AttendanceHistory>>(
-      future: _historyFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _buildLoadingList();
-        }
+    if (_historyData.isEmpty) {
+      return _buildEmptyState();
+    }
 
-        if (snapshot.hasError) {
-          return _buildErrorList();
-        }
+    final filteredHistory = _filterHistory(_historyData, selectedFilter);
 
-        final history = snapshot.data ?? [];
+    if (filteredHistory.isEmpty) {
+      return _buildNoResultState();
+    }
 
-        if (history.isEmpty) {
-          return _buildEmptyState();
-        }
-
-        // Lọc theo bộ lọc
-        final filteredHistory = _filterHistory(history, selectedFilter);
-
-        if (filteredHistory.isEmpty) {
-          return _buildNoResultState();
-        }
-
-        return Column(
-          children: filteredHistory.map((item) => _buildHistoryItem(item)).toList(),
-        );
-      },
-    );
-  }
-
-  Widget _buildLoadingList() {
     return Column(
-      children: List.generate(3, (index) => _buildHistoryItemShimmer()),
-    );
-  }
-
-  Widget _buildErrorList() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: _cardDecoration(),
-      child: Column(
-        children: [
-          const Icon(Icons.error_outline, color: Colors.red, size: 50),
-          const SizedBox(height: 12),
-          const Text(
-            "Lỗi tải lịch sử điểm danh",
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-          ),
-          const SizedBox(height: 8),
-          ElevatedButton(
-            onPressed: _loadData,
-            child: const Text("Tải lại"),
-          ),
-        ],
-      ),
+      children: filteredHistory.map((item) => _buildHistoryItem(item)).toList(),
     );
   }
 
@@ -375,7 +312,6 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
   // 🔸 WIDGET: Item lịch sử
   // ======================
   Widget _buildHistoryItem(AttendanceHistory item) {
-    // SỬA: Thêm Color cho status (tạm thời dùng logic đơn giản)
     Color getStatusColor(String statusColor) {
       switch (statusColor) {
         case 'green': return Colors.green;
@@ -439,7 +375,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
                 Text(
                   'Điểm danh: ${item.checkinTime}',
                   style: TextStyle(
-                    color: Colors.grey[500],
+                    color: const Color.fromARGB(255, 82, 134, 255),
                     fontSize: 12,
                   ),
                 ),
@@ -468,71 +404,66 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
     );
   }
 
-  Widget _buildHistoryItemShimmer() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: _cardDecoration(),
-      child: Row(
+  // ======================
+  // 🔸 WIDGET: Các trạng thái
+  // ======================
+  Widget _buildLoadingState() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade300,
-              shape: BoxShape.circle,
-            ),
+          CircularProgressIndicator(),
+          SizedBox(height: 16),
+          Text('Đang tải lịch sử điểm danh...'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, size: 60, color: Colors.red),
+          const SizedBox(height: 16),
+          const Text(
+            'Lỗi tải dữ liệu',
+            style: TextStyle(fontSize: 16, color: Colors.grey),
+            textAlign: TextAlign.center,
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 120,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  width: 100,
-                  height: 14,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Container(
-                  width: 80,
-                  height: 14,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            width: 60,
-            height: 24,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade300,
-              borderRadius: BorderRadius.circular(12),
-            ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: _loadData,
+            child: const Text('Thử lại'),
           ),
         ],
       ),
     );
   }
 
-  // ======================
-  // 🔸 WIDGET: Trạng thái trống
-  // ======================
+  Widget _buildNoUserState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.person_off, size: 60, color: Colors.grey),
+          const SizedBox(height: 16),
+          const Text(
+            'Không tìm thấy thông tin người dùng',
+            style: TextStyle(fontSize: 16, color: Colors.grey),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: _initializeData,
+            child: const Text('Thử lại'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildEmptyState() {
     return Container(
       padding: const EdgeInsets.all(40),
@@ -569,9 +500,6 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
     );
   }
 
-  // ======================
-  // 🔸 WIDGET: Trạng thái
-  // ======================
   Widget _statusBox(String label, Color color, int count) {
     return Container(
       width: 90,
@@ -597,7 +525,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
   }
 
   // ======================
-  // 🔸 HELPER: Lọc dữ liệu
+  // 🔸 HELPER METHODS
   // ======================
   List<AttendanceHistory> _filterHistory(List<AttendanceHistory> history, String filter) {
     switch (filter) {
@@ -618,9 +546,6 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
     return Colors.red;
   }
 
-  // ======================
-  // 🔸 STYLE: Card BoxDecoration
-  // ======================
   BoxDecoration _cardDecoration() {
     return BoxDecoration(
       color: Colors.white,
