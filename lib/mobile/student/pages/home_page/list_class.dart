@@ -97,26 +97,26 @@ class ListClassScreen extends StatelessWidget {
     final session = sessionWithCourse.session;
 
     // 🎨 Xác định màu theo trạng thái
-    Color borderColor;
+    Color statusColor;
     switch (session.status) {
       case SessionStatus.ongoing:
-        borderColor = Colors.green;      // Xanh lá - Đang diễn ra
+        statusColor = Colors.green;      // Xanh lá - Đang diễn ra
         break;
       case SessionStatus.scheduled:
-        borderColor = Colors.red;        // Đỏ - Sắp diễn ra
+        statusColor = Colors.red;        // Đỏ - Sắp diễn ra
         break;
       case SessionStatus.done:
-        borderColor = Colors.blue;       // Xanh nước biển - Đã kết thúc
+        statusColor = Colors.blue;       // Xanh nước biển - Đã kết thúc
         break;
       default:
-        borderColor = Colors.grey;
+        statusColor = Colors.grey;
     }
 
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: borderColor, width: 2),
+        side: BorderSide(color: statusColor, width: 2),
       ),
       margin: const EdgeInsets.only(bottom: 16),
       child: Padding(
@@ -124,23 +124,44 @@ class ListClassScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildCourseNameSection(sessionWithCourse, borderColor),
+            // 🔥 SỬA: Dòng đầu tiên - Tên môn học và trạng thái ngang hàng
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Tên môn học bên trái
+                Expanded(
+                  child: _buildCourseNameSection(sessionWithCourse),
+                ),
+                const SizedBox(width: 12),
+                // 🔥 THÊM: Trạng thái nằm bên phải, ngang hàng với tên môn học
+                _buildSessionStatus(session, statusColor),
+              ],
+            ),
             const SizedBox(height: 8),
 
+            // Dòng lớp học
+            _buildInfoRow(
+              icon: Icons.class_outlined,
+              text: session.classId,
+            ),
+            const SizedBox(height: 4),
+
+            // 🔥 SỬA: Phòng học và ngày học nằm ngang hàng
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildInfoRow(icon: Icons.class_outlined, text: session.classId),
+                // Phòng học bên trái
+                _buildInfoRow(
+                  icon: Icons.location_on_outlined,
+                  text: session.room ?? 'Chưa có phòng',
+                ),
+                // Ngày học bên phải
                 Text(
                   'Ngày ${session.dateDisplay}',
                   style: const TextStyle(fontSize: 13, color: Colors.black54),
                 ),
               ],
-            ),
-            const SizedBox(height: 4),
-            _buildInfoRow(
-              icon: Icons.location_on_outlined,
-              text: session.room ?? 'Chưa có phòng',
             ),
             const SizedBox(height: 8),
 
@@ -171,7 +192,7 @@ class ListClassScreen extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    const Text('Thời gian',
+                    const Text('Lớp bắt đầu',
                         style: TextStyle(fontSize: 13, color: Colors.black54)),
                     const SizedBox(height: 2),
                     Text(
@@ -186,26 +207,75 @@ class ListClassScreen extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            _buildSessionStatus(session),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildCourseNameSection(SessionWithCourse sessionWithCourse, Color borderColor) {
+  // 🔥 SỬA: Widget trạng thái riêng biệt để đặt bên phải
+  Widget _buildSessionStatus(SessionModel session, Color statusColor) {
+    String statusText;
+    IconData statusIcon;
+
+    switch (session.status) {
+      case SessionStatus.ongoing:
+        statusText = 'Đang diễn ra';
+        statusIcon = Icons.play_arrow;
+        break;
+      case SessionStatus.scheduled:
+        statusText = 'Sắp diễn ra';
+        statusIcon = Icons.schedule;
+        break;
+      case SessionStatus.done:
+        statusText = 'Đã kết thúc';
+        statusIcon = Icons.check_circle;
+        break;
+      default:
+        statusText = 'Không xác định';
+        statusIcon = Icons.help_outline;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: statusColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: statusColor.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(statusIcon, size: 14, color: statusColor),
+          const SizedBox(width: 4),
+          Text(
+            statusText,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: statusColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 🔥 SỬA: Tên môn học luôn màu đen
+  Widget _buildCourseNameSection(SessionWithCourse sessionWithCourse) {
     if (sessionWithCourse.course != null) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             sessionWithCourse.courseName,
-            style: TextStyle(
-              fontSize: 18,
+            style: const TextStyle(
+              fontSize: 20,
               fontWeight: FontWeight.w700,
-              color: borderColor,
+              color: Colors.black, // 🔥 LUÔN MÀU ĐEN
             ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
           if (sessionWithCourse.courseCode.isNotEmpty && 
               sessionWithCourse.courseCode != sessionWithCourse.session.courseId) ...[
@@ -231,11 +301,13 @@ class ListClassScreen extends StatelessWidget {
           children: [
             Text(
               courseName,
-              style: TextStyle(
-                fontSize: 18,
+              style: const TextStyle(
+                fontSize: 20,
                 fontWeight: FontWeight.w700,
-                color: borderColor,
+                color: Colors.black, // 🔥 LUÔN MÀU ĐEN
               ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 2),
             Text(
@@ -261,65 +333,6 @@ class ListClassScreen extends StatelessWidget {
           style: const TextStyle(fontSize: 13, color: Colors.black87),
         ),
       ],
-    );
-  }
-
-  Widget _buildSessionStatus(SessionModel session) {
-    Color statusColor;
-    String statusText;
-    IconData statusIcon;
-
-    switch (session.status) {
-      case SessionStatus.ongoing:
-        statusColor = Colors.green;
-        statusText = 'Đang diễn ra';
-        statusIcon = Icons.play_arrow;
-        break;
-      case SessionStatus.scheduled:
-        statusColor = Colors.red;
-        statusText = 'Sắp diễn ra';
-        statusIcon = Icons.schedule;
-        break;
-      case SessionStatus.done:
-        statusColor = Colors.blue;
-        statusText = 'Đã kết thúc';
-        statusIcon = Icons.check_circle;
-        break;
-      default:
-        statusColor = Colors.grey;
-        statusText = 'Không xác định';
-        statusIcon = Icons.help_outline;
-    }
-
-    // 🔥 THÊM: Highlight đặc biệt cho buổi học đang diễn ra
-    if (session.isHappeningNow) {
-      statusColor = Colors.orange;
-      statusText = 'ĐANG DIỄN RA NGAY BÂY GIỜ';
-      statusIcon = Icons.notifications_active;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: statusColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: statusColor.withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(statusIcon, size: 16, color: statusColor),
-          const SizedBox(width: 6),
-          Text(
-            statusText,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: statusColor,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
