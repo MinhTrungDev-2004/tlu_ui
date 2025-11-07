@@ -97,7 +97,7 @@ class _QRScanScreenState extends State<QRScanScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Lỗi'),
+        title: const Text(''),
         content: Text(message),
         actions: [
           TextButton(
@@ -158,28 +158,6 @@ class _QRScanScreenState extends State<QRScanScreen> {
               ),
             ),
           ),
-
-          // Nút flash & switch camera - chỉ hiển thị khi đang quét
-          if (_isScanning)
-            Positioned(
-              bottom: 120,
-              left: 0,
-              right: 0,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.flash_on, color: Colors.white),
-                    onPressed: () => controller?.toggleTorch(),
-                  ),
-                  const SizedBox(width: 40),
-                  IconButton(
-                    icon: const Icon(Icons.cameraswitch, color: Colors.white),
-                    onPressed: () => controller?.switchCamera(),
-                  ),
-                ],
-              ),
-            ),
 
           // Nút hủy
           Positioned(

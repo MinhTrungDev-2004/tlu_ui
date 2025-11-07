@@ -28,6 +28,27 @@ class ListClassScreen extends StatelessWidget {
     );
   }
 
+  // 🎯 Hàm xác định trạng thái thời gian thực
+  SessionStatus _calculateRealTimeStatus(SessionModel session) {
+    final now = DateTime.now();
+    final sessionStart = session.startDateTime;
+    final sessionEnd = session.endDateTime;
+
+    // Kiểm tra nếu thời gian không hợp lệ
+    if (sessionStart.isAfter(sessionEnd)) {
+      return SessionStatus.done;
+    }
+
+    // Tính toán trạng thái thực tế
+    if (now.isBefore(sessionStart)) {
+      return SessionStatus.scheduled;
+    } else if (now.isAfter(sessionEnd)) {
+      return SessionStatus.done;
+    } else {
+      return SessionStatus.ongoing;
+    }
+  }
+
   Future<String> _getLecturerName(String? lecturerId) async {
     if (lecturerId == null || lecturerId.isEmpty) return 'Chưa có giảng viên';
     try {
@@ -54,20 +75,31 @@ class ListClassScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 🔥 SỬA: Sắp xếp theo thứ tự ưu tiên màu
-    final sortedSessions = List<SessionWithCourse>.from(sessionsWithCourse)
+    // Sử dụng trạng thái tính toán thời gian thực
+    final sessionsWithRealTimeStatus = sessionsWithCourse.map((sessionWithCourse) {
+      final realTimeStatus = _calculateRealTimeStatus(sessionWithCourse.session);
+      
+      // Tạo session mới với trạng thái chính xác
+      final updatedSession = sessionWithCourse.session.copyWith(status: realTimeStatus);
+      
+      return SessionWithCourse(
+        session: updatedSession,
+        course: sessionWithCourse.course,
+      );
+    }).toList();
+
+    // Sắp xếp theo thứ tự ưu tiên màu
+    final sortedSessions = List<SessionWithCourse>.from(sessionsWithRealTimeStatus)
       ..sort((a, b) {
-        // Ưu tiên theo trạng thái: Đang diễn ra → Sắp diễn ra → Đã kết thúc
         final statusOrder = {
-          SessionStatus.ongoing: 1,    // Xanh lá - cao nhất
-          SessionStatus.scheduled: 2,  // Đỏ - giữa
-          SessionStatus.done: 3,       // Xanh nước biển - thấp nhất
+          SessionStatus.ongoing: 1,
+          SessionStatus.scheduled: 2,
+          SessionStatus.done: 3,
         };
         
         final aOrder = statusOrder[a.session.status] ?? 4;
         final bOrder = statusOrder[b.session.status] ?? 4;
         
-        // Nếu cùng trạng thái, sắp xếp theo thời gian
         if (aOrder == bOrder) {
           return a.session.startDateTime.compareTo(b.session.startDateTime);
         }
@@ -96,17 +128,20 @@ class ListClassScreen extends StatelessWidget {
   Widget _buildSessionCard(SessionWithCourse sessionWithCourse) {
     final session = sessionWithCourse.session;
 
-    // 🎨 Xác định màu theo trạng thái
+    // Tính toán trạng thái thực tế
+    final realTimeStatus = _calculateRealTimeStatus(session);
+
+    // 🎨 Xác định màu theo trạng thái THỰC TẾ
     Color statusColor;
-    switch (session.status) {
+    switch (realTimeStatus) {
       case SessionStatus.ongoing:
-        statusColor = Colors.green;      // Xanh lá - Đang diễn ra
+        statusColor = Colors.green;
         break;
       case SessionStatus.scheduled:
-        statusColor = Colors.red;        // Đỏ - Sắp diễn ra
+        statusColor = Colors.red;
         break;
       case SessionStatus.done:
-        statusColor = Colors.blue;       // Xanh nước biển - Đã kết thúc
+        statusColor = Colors.blue;
         break;
       default:
         statusColor = Colors.grey;
@@ -124,18 +159,18 @@ class ListClassScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 🔥 SỬA: Dòng đầu tiên - Tên môn học và trạng thái ngang hàng
+            // Dòng đầu tiên - Tên môn học và trạng thái
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Tên môn học bên trái
+                // Tên môn học
                 Expanded(
                   child: _buildCourseNameSection(sessionWithCourse),
                 ),
                 const SizedBox(width: 12),
-                // 🔥 THÊM: Trạng thái nằm bên phải, ngang hàng với tên môn học
-                _buildSessionStatus(session, statusColor),
+                // Trạng thái THỰC TẾ
+                _buildSessionStatus(realTimeStatus, statusColor),
               ],
             ),
             const SizedBox(height: 8),
@@ -147,16 +182,14 @@ class ListClassScreen extends StatelessWidget {
             ),
             const SizedBox(height: 4),
 
-            // 🔥 SỬA: Phòng học và ngày học nằm ngang hàng
+            // Phòng học và ngày học
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Phòng học bên trái
                 _buildInfoRow(
                   icon: Icons.location_on_outlined,
                   text: session.room ?? 'Chưa có phòng',
                 ),
-                // Ngày học bên phải
                 Text(
                   'Ngày ${session.dateDisplay}',
                   style: const TextStyle(fontSize: 13, color: Colors.black54),
@@ -165,6 +198,7 @@ class ListClassScreen extends StatelessWidget {
             ),
             const SizedBox(height: 8),
 
+            // Giảng viên và thời gian
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -192,7 +226,7 @@ class ListClassScreen extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    const Text('Lớp bắt đầu',
+                    const Text('Thời gian',
                         style: TextStyle(fontSize: 13, color: Colors.black54)),
                     const SizedBox(height: 2),
                     Text(
@@ -213,12 +247,12 @@ class ListClassScreen extends StatelessWidget {
     );
   }
 
-  // 🔥 SỬA: Widget trạng thái riêng biệt để đặt bên phải
-  Widget _buildSessionStatus(SessionModel session, Color statusColor) {
+  // Widget trạng thái sử dụng trạng thái THỰC TẾ
+  Widget _buildSessionStatus(SessionStatus realTimeStatus, Color statusColor) {
     String statusText;
     IconData statusIcon;
 
-    switch (session.status) {
+    switch (realTimeStatus) {
       case SessionStatus.ongoing:
         statusText = 'Đang diễn ra';
         statusIcon = Icons.play_arrow;
@@ -261,7 +295,6 @@ class ListClassScreen extends StatelessWidget {
     );
   }
 
-  // 🔥 SỬA: Tên môn học luôn màu đen
   Widget _buildCourseNameSection(SessionWithCourse sessionWithCourse) {
     if (sessionWithCourse.course != null) {
       return Column(
@@ -272,7 +305,7 @@ class ListClassScreen extends StatelessWidget {
             style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w700,
-              color: Colors.black, // 🔥 LUÔN MÀU ĐEN
+              color: Colors.black,
             ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
@@ -304,7 +337,7 @@ class ListClassScreen extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
-                color: Colors.black, // 🔥 LUÔN MÀU ĐEN
+                color: Colors.black,
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -337,7 +370,6 @@ class ListClassScreen extends StatelessWidget {
   }
 }
 
-// ✅ Model kết hợp Session + Course
 class SessionWithCourse {
   final SessionModel session;
   final CourseModel? course;
