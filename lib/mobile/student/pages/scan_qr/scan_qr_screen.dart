@@ -2,7 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'widgets/class_info_screen.dart';
-import '../register_face/widgets/main_appbar.dart'; // ✅ Import AppBar dùng chung
+import '../register_face/widgets/main_appbar.dart';
+import '../../../../services/session_service.dart'; // Import SessionService
 
 class QRScanScreen extends StatefulWidget {
   const QRScanScreen({super.key});
@@ -15,7 +16,13 @@ class _QRScanScreenState extends State<QRScanScreen> {
   MobileScannerController? controller;
   bool _isScanning = true;
   bool _navigated = false;
-  String? _scannedData;
+  final SessionService _sessionService = SessionService();
+
+  @override
+  void initState() {
+    super.initState();
+    controller = MobileScannerController();
+  }
 
   @override
   void dispose() {
@@ -23,20 +30,83 @@ class _QRScanScreenState extends State<QRScanScreen> {
     super.dispose();
   }
 
-  void _onQRDetected(BarcodeCapture capture) {
+  void _onQRDetected(BarcodeCapture capture) async {
     if (!_navigated && capture.barcodes.isNotEmpty) {
-      final String? code = capture.barcodes.first.rawValue;
-      setState(() {
-        _scannedData = code;
-        _navigated = true;
-        _isScanning = false;
-      });
+      final String? qrData = capture.barcodes.first.rawValue;
+      
+      if (qrData != null) {
+        setState(() {
+          _navigated = true;
+          _isScanning = false;
+        });
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const ClassInfoScreen()),
-      );
+        // Hiển thị loading
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+
+        try {
+          // Lấy thông tin session từ QR data
+          final session = await _sessionService.getSessionFromQR(qrData);
+          
+          Navigator.pop(context); // Đóng loading dialog
+
+          if (session != null) {
+            // Kiểm tra tính hợp lệ của session
+            final validationError = _sessionService.validateSessionForAttendance(session);
+            
+            if (validationError == null) {
+              // Chuyển đến trang thông tin buổi học với session data
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ClassInfoScreen(
+                    session: session,
+                  ),
+                ),
+              );
+            } else {
+              _showErrorDialog(validationError);
+              _resetScanner();
+            }
+          } else {
+            _showErrorDialog('Mã QR không hợp lệ hoặc không tìm thấy buổi học');
+            _resetScanner();
+          }
+        } catch (e) {
+          Navigator.pop(context);
+          _showErrorDialog('Lỗi khi xử lý mã QR: $e');
+          _resetScanner();
+        }
+      }
     }
+  }
+
+  void _resetScanner() {
+    setState(() {
+      _navigated = false;
+      _isScanning = true;
+    });
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Lỗi'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -46,22 +116,20 @@ class _QRScanScreenState extends State<QRScanScreen> {
 
     return Scaffold(
       backgroundColor: Colors.black,
-
-      // ✅ AppBar thống nhất (giống Home & Register)
       appBar: buildMainAppBar(
         context: context,
         title: 'Quét QR Code',
-        showBack: true, // Có nút quay lại
+        showBack: true,
       ),
-
       body: Stack(
         children: [
-          // Camera scanner
-          MobileScanner(
-            controller: controller,
-            onDetect: _onQRDetected,
-            fit: BoxFit.cover,
-          ),
+          // Camera scanner - chỉ hiển thị khi đang quét
+          if (_isScanning)
+            MobileScanner(
+              controller: controller,
+              onDetect: _onQRDetected,
+              fit: BoxFit.cover,
+            ),
 
           // Overlay khung quét
           _buildQROverlay(cutOut),
@@ -77,9 +145,11 @@ class _QRScanScreenState extends State<QRScanScreen> {
                 color: Colors.black54,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Text(
-                'Đặt mã QR trong khung để quét',
-                style: TextStyle(
+              child: Text(
+                _isScanning 
+                  ? 'Đặt mã QR trong khung để quét'
+                  : 'Đang xử lý...',
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
@@ -89,7 +159,29 @@ class _QRScanScreenState extends State<QRScanScreen> {
             ),
           ),
 
-          // ✅ Nút hủy
+          // Nút flash & switch camera - chỉ hiển thị khi đang quét
+          if (_isScanning)
+            Positioned(
+              bottom: 120,
+              left: 0,
+              right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.flash_on, color: Colors.white),
+                    onPressed: () => controller?.toggleTorch(),
+                  ),
+                  const SizedBox(width: 40),
+                  IconButton(
+                    icon: const Icon(Icons.cameraswitch, color: Colors.white),
+                    onPressed: () => controller?.switchCamera(),
+                  ),
+                ],
+              ),
+            ),
+
+          // Nút hủy
           Positioned(
             bottom: 40,
             left: 0,
@@ -128,20 +220,56 @@ class _QRScanScreenState extends State<QRScanScreen> {
         height: overlayHeight,
         child: Stack(
           children: [
+            // Làm tối background xung quanh khung quét
             Container(color: Colors.black54),
+            
+            // Khung quét chính giữa
             Center(
               child: Container(
                 width: cutOut,
                 height: cutOut,
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.green, width: 3),
+                  border: Border.all(
+                    color: _isScanning ? Colors.green : Colors.grey,
+                    width: 3,
+                  ),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: CustomPaint(
-                  painter: _CornerPainter(),
+                  painter: _CornerPainter(
+                    color: _isScanning ? Colors.green : Colors.grey,
+                  ),
                 ),
               ),
             ),
+
+            // Hiệu ứng quét - chỉ hiển thị khi đang quét
+            if (_isScanning)
+              Positioned(
+                top: (overlayHeight - cutOut) / 2,
+                left: (screenSize.width - cutOut) / 2,
+                child: Container(
+                  width: cutOut,
+                  height: 2,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.green.withOpacity(0.1),
+                        Colors.green,
+                        Colors.green.withOpacity(0.1),
+                      ],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.green.withOpacity(0.5),
+                        blurRadius: 8,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: const SizedBox(),
+                ),
+              ),
           ],
         ),
       ),
@@ -151,25 +279,32 @@ class _QRScanScreenState extends State<QRScanScreen> {
 
 // Painter vẽ 4 góc khung QR
 class _CornerPainter extends CustomPainter {
+  final Color color;
+
+  const _CornerPainter({this.color = Colors.green});
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.green
+      ..color = color
       ..strokeWidth = 6
       ..style = PaintingStyle.stroke;
 
     const cornerSize = 30.0;
 
-    // 4 góc
+    // Góc trên bên trái
     canvas.drawLine(Offset(0, 0), Offset(cornerSize, 0), paint);
     canvas.drawLine(Offset(0, 0), Offset(0, cornerSize), paint);
 
+    // Góc trên bên phải
     canvas.drawLine(Offset(size.width - cornerSize, 0), Offset(size.width, 0), paint);
     canvas.drawLine(Offset(size.width, 0), Offset(size.width, cornerSize), paint);
 
+    // Góc dưới bên trái
     canvas.drawLine(Offset(0, size.height), Offset(0, size.height - cornerSize), paint);
     canvas.drawLine(Offset(0, size.height), Offset(cornerSize, size.height), paint);
 
+    // Góc dưới bên phải
     canvas.drawLine(Offset(size.width, size.height - cornerSize), Offset(size.width, size.height), paint);
     canvas.drawLine(Offset(size.width - cornerSize, size.height), Offset(size.width, size.height), paint);
   }

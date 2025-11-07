@@ -1,22 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../models/session_model.dart'; // Import SessionModel của bạn
-import 'dart:async';
+import '../../models/session_model.dart';
+import 'dart:convert';
 
 class SessionService {
   final CollectionReference<SessionModel> _sessionsRef;
 
   SessionService()
       : _sessionsRef = FirebaseFirestore.instance
-      .collection('sessions') // Tên collection của bạn
-      .withConverter<SessionModel>(
-
-    // Cách Firestore đọc (chuyển Map thành Model)
-    fromFirestore: (snapshot, _) =>
-        SessionModel.fromMap(snapshot.data()!, snapshot.id),
-
-    // Cách Firestore ghi (chuyển Model thành Map)
-    toFirestore: (session, _) => session.toMap(),
-  );
+          .collection('sessions')
+          .withConverter<SessionModel>(
+            fromFirestore: (snapshot, _) =>
+                SessionModel.fromMap(snapshot.data()!, snapshot.id),
+            toFirestore: (session, _) => session.toMap(),
+          );
 
   // --- 1. CREATE (Tạo) ---
 
@@ -31,179 +27,295 @@ class SessionService {
     }
   }
 
-  /// Tạo một loạt buổi học lặp lại (ví dụ: Thứ 2, 4, 6 trong 3 tháng)
-  /// Hàm này sẽ tạo session "cha" (template) và tất cả session "con".
-  Future<String> createRecurringSessions(SessionModel template) async {
+  /// Tạo một loạt buổi học lặp lại
+  Future<List<String>> createRecurringSessions(SessionModel template) async {
     if (!template.isRecurring ||
         template.repeatDays == null ||
         template.repeatUntil == null) {
-      // Nếu không phải lặp, chỉ cần tạo 1 session
-      return createSession(template);
+      final sessionId = await createSession(template);
+      return [sessionId];
     }
 
     final batch = FirebaseFirestore.instance.batch();
+    final createdSessionIds = <String>[];
 
     // 1. Tạo session "cha" (template)
     final parentDoc = _sessionsRef.doc();
     final parentSession = template.copyWith(
       id: parentDoc.id,
-      isRecurring: true, // Đảm bảo đây là template
+      isRecurring: true,
     );
     batch.set(parentDoc, parentSession);
+    createdSessionIds.add(parentDoc.id);
 
     // 2. Lặp qua các ngày để tạo các session "con"
     DateTime currentDate = template.date;
     final endDate = template.repeatUntil!;
 
-    while (currentDate.isBefore(endDate) ||
-        currentDate.isAtSameMomentAs(endDate)) {
-
-      // Kiểm tra xem ngày hiện tại có trong danh sách lặp (repeatDays) không
+    while (currentDate.isBefore(endDate) || currentDate.isAtSameMomentAs(endDate)) {
+      // Kiểm tra ngày trong tuần
       if (template.repeatDays!.contains(currentDate.weekday)) {
         final childDoc = _sessionsRef.doc();
         final childSession = template.copyWith(
           id: childDoc.id,
           date: currentDate,
-          isRecurring: false, // Session con không phải là template
-          parentSessionId: parentDoc.id, // Liên kết về session cha
+          isRecurring: false,
+          parentSessionId: parentDoc.id,
           qrCode: null,
           qrExpiry: null,
           attendanceIds: [],
           status: SessionStatus.scheduled,
           createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
         );
         batch.set(childDoc, childSession);
+        createdSessionIds.add(childDoc.id);
       }
-      // Tăng lên ngày tiếp theo
       currentDate = currentDate.add(const Duration(days: 1));
     }
 
-    // 3. Commit toàn bộ batch
     await batch.commit();
-    return parentDoc.id; // Trả về ID của session cha (template)
+    return createdSessionIds;
   }
 
   // --- 2. READ (Đọc) ---
 
   /// Lấy một session cụ thể bằng ID
   Future<SessionModel?> getSession(String id) async {
-    final doc = await _sessionsRef.doc(id).get();
-    return doc.data();
+    try {
+      final doc = await _sessionsRef.doc(id).get();
+      return doc.data();
+    } catch (e) {
+      print("Lỗi khi lấy session: $e");
+      return null;
+    }
   }
 
-  /// Lấy (stream) danh sách các buổi học cho một lớp (classId)
-  /// Sắp xếp theo ngày và giờ bắt đầu
+  /// Lấy session từ QR data
+  Future<SessionModel?> getSessionFromQR(String qrData) async {
+    try {
+      final qrMap = jsonDecode(qrData);
+      final sessionId = qrMap['sessionId'] as String?;
+      
+      if (sessionId == null) return null;
+      return await getSession(sessionId);
+    } catch (e) {
+      print('Error parsing QR data: $e');
+      return null;
+    }
+  }
+
+  /// Lấy danh sách sessions cho một lớp
   Stream<List<SessionModel>> streamSessionsForClass(String classId) {
-    final query = _sessionsRef
-        .where('class_id', isEqualTo: classId)
-        .orderBy('date')
-        .orderBy('start_time');
+    try {
+      final query = _sessionsRef
+          .where('class_id', isEqualTo: classId)
+          .orderBy('date')
+          .orderBy('start_time');
 
-    return query.snapshots().map((snapshot) =>
-        snapshot.docs.map((doc) => doc.data()).toList());
+      return query.snapshots().map((snapshot) =>
+          snapshot.docs.map((doc) => doc.data()).toList());
+    } catch (e) {
+      print("Lỗi khi stream sessions: $e");
+      return Stream.value([]);
+    }
   }
 
-  /// Lấy (stream) danh sách buổi học của giảng viên (lecturerId) VÀO MỘT NGÀY CỤ THỂ
+  /// Lấy sessions của giảng viên trong ngày
   Stream<List<SessionModel>> streamSessionsForLecturerOnDate(
       String lecturerId, DateTime date) {
+    try {
+      final startOfDay = DateTime(date.year, date.month, date.day);
+      final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
 
-    // ⭐ SỬA: Tạo khoảng thời gian trong ngày để truy vấn Timestamp
-    final startOfDay = DateTime(date.year, date.month, date.day);
-    final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
+      final query = _sessionsRef
+          .where('lecturer_id', isEqualTo: lecturerId)
+          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+          .where('date', isLessThanOrEqualTo: Timestamp.fromDate(endOfDay))
+          .orderBy('date')
+          .orderBy('start_time');
 
-    final query = _sessionsRef
-        .where('lecturer_id', isEqualTo: lecturerId)
-        .where('date', isGreaterThanOrEqualTo: startOfDay) // ⭐ SỬA: Truyền trực tiếp DateTime
-        .where('date', isLessThanOrEqualTo: endOfDay)       // ⭐ SỬA: Truyền trực tiếp DateTime
-        .orderBy('date')
-        .orderBy('start_time');
-
-    return query.snapshots().map((snapshot) =>
-        snapshot.docs.map((doc) => doc.data()).toList());
+      return query.snapshots().map((snapshot) =>
+          snapshot.docs.map((doc) => doc.data()).toList());
+    } catch (e) {
+      print("Lỗi khi stream sessions lecturer: $e");
+      return Stream.value([]);
+    }
   }
 
-  /// Lấy (stream) các buổi học đang diễn ra (ongoing) cho một lớp
+  /// Lấy sessions đang diễn ra
   Stream<List<SessionModel>> streamOngoingSessions(String classId) {
-    final query = _sessionsRef
-        .where('class_id', isEqualTo: classId)
-        .where('status', isEqualTo: SessionStatus.ongoing.name);
+    try {
+      final query = _sessionsRef
+          .where('class_id', isEqualTo: classId)
+          .where('status', isEqualTo: SessionStatus.ongoing.name);
 
-    return query.snapshots().map((snapshot) =>
-        snapshot.docs.map((doc) => doc.data()).toList());
+      return query.snapshots().map((snapshot) =>
+          snapshot.docs.map((doc) => doc.data()).toList());
+    } catch (e) {
+      print("Lỗi khi stream ongoing sessions: $e");
+      return Stream.value([]);
+    }
   }
-
 
   // --- 3. UPDATE (Cập nhật) ---
 
-  /// Cập nhật một session với dữ liệu Map
-  /// (Dùng cho các cập nhật chung)
+  /// Cập nhật session với dữ liệu Map
   Future<void> updateSessionData(String id, Map<String, dynamic> data) async {
-    // Tự động thêm 'updated_at'
-    data['updated_at'] = FieldValue.serverTimestamp();
-    await _sessionsRef.doc(id).update(data);
+    try {
+      data['updated_at'] = FieldValue.serverTimestamp();
+      await _sessionsRef.doc(id).update(data);
+    } catch (e) {
+      print("Lỗi khi cập nhật session: $e");
+      rethrow;
+    }
   }
 
-  /// Tạo QR code và cập nhật session (business logic)
+  /// Tạo và lưu QR code
   Future<void> generateAndSaveQr(String sessionId, Duration validity) async {
-    final session = await getSession(sessionId);
-    if (session == null) return;
+    try {
+      final session = await getSession(sessionId);
+      if (session == null) throw Exception('Session not found');
 
-    final qrData = session.generateQrData();
-    final qrExpiry = DateTime.now().add(validity);
+      final qrData = session.generateQrData();
+      final qrExpiry = DateTime.now().add(validity);
 
-    await updateSessionData(sessionId, {
-      'qr_code': qrData,
-      'qr_expiry': qrExpiry.toIso8601String(), // Lưu theo chuẩn của model
-      'status': SessionStatus.ongoing.name, // Chuyển trạng thái
-    });
+      await updateSessionData(sessionId, {
+        'qr_code': qrData,
+        'qr_expiry': qrExpiry.toIso8601String(),
+        'status': SessionStatus.ongoing.name,
+      });
+    } catch (e) {
+      print("Lỗi khi tạo QR: $e");
+      rethrow;
+    }
   }
 
-  /// Điểm danh cho sinh viên (business logic)
-  Future<void> markAttendance(String sessionId, String studentId) async {
-    // Dùng FieldValue.arrayUnion để đảm bảo an toàn khi nhiều
-    // sinh viên điểm danh cùng lúc và tránh trùng lặp.
-    await _sessionsRef.doc(sessionId).update({
-      'attendance_ids': FieldValue.arrayUnion([studentId]),
-      'updated_at': FieldValue.serverTimestamp(),
-    });
+  /// Điểm danh sinh viên
+  Future<bool> markAttendance({
+    required String sessionId,
+    required String studentId,
+    required String faceImageUrl,
+  }) async {
+    try {
+      // Cập nhật session
+      await _sessionsRef.doc(sessionId).update({
+        'attendance_ids': FieldValue.arrayUnion([studentId]),
+        'updated_at': FieldValue.serverTimestamp(),
+      });
+
+      // Tạo attendance record
+      await FirebaseFirestore.instance.collection('attendance_records').add({
+        'session_id': sessionId,
+        'student_id': studentId,
+        'face_image_url': faceImageUrl,
+        'timestamp': FieldValue.serverTimestamp(),
+        'method': 'face_recognition',
+        'status': 'present',
+      });
+
+      return true;
+    } catch (e) {
+      print("Lỗi khi điểm danh: $e");
+      return false;
+    }
   }
 
-  /// Hủy điểm danh (nếu cần)
+  /// Hủy điểm danh
   Future<void> unmarkAttendance(String sessionId, String studentId) async {
-    await _sessionsRef.doc(sessionId).update({
-      'attendance_ids': FieldValue.arrayRemove([studentId]),
-      'updated_at': FieldValue.serverTimestamp(),
-    });
+    try {
+      await _sessionsRef.doc(sessionId).update({
+        'attendance_ids': FieldValue.arrayRemove([studentId]),
+        'updated_at': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print("Lỗi khi hủy điểm danh: $e");
+      rethrow;
+    }
+  }
+
+  /// Kiểm tra sinh viên đã điểm danh chưa
+  Future<bool> hasStudentAttended(String sessionId, String studentId) async {
+    try {
+      final session = await getSession(sessionId);
+      return session?.isStudentAttended(studentId) ?? false;
+    } catch (e) {
+      print("Lỗi khi kiểm tra điểm danh: $e");
+      return false;
+    }
+  }
+
+  /// Kiểm tra session có hợp lệ để điểm danh
+  String? validateSessionForAttendance(SessionModel session) {
+    final now = DateTime.now();
+    
+    if (session.isCancelled) return 'Buổi học đã bị hủy';
+    if (session.isCompleted) return 'Buổi học đã kết thúc';
+    if (now.isBefore(session.startDateTime)) return 'Buổi học chưa bắt đầu';
+    if (now.isAfter(session.endDateTime)) return 'Buổi học đã kết thúc';
+    if (session.qrCode != null && !session.isQrValid) return 'Mã QR đã hết hạn';
+    
+    return null; // Hợp lệ
   }
 
   // --- 4. DELETE (Xóa) ---
 
-  /// Xóa một session (và các session con nếu là lặp lại)
+  /// Xóa session
   Future<void> deleteSession(String sessionId, {bool deleteAllRecurring = false}) async {
-    final session = await getSession(sessionId);
-    if (session == null) return;
+    try {
+      if (deleteAllRecurring) {
+        final session = await getSession(sessionId);
+        if (session == null) return;
 
-    if (deleteAllRecurring) {
-      // Tìm parentId (là chính nó nếu là cha, hoặc parentSessionId nếu là con)
-      String parentId = session.isRecurring ? session.id : (session.parentSessionId ?? sessionId);
-
-      // Xóa tất cả các session (con) có cùng parentSessionId
-      final query = _sessionsRef.where('parent_session_id', isEqualTo: parentId);
-      final batch = FirebaseFirestore.instance.batch();
-      final childDocs = await query.get();
-
-      for (final doc in childDocs.docs) {
-        batch.delete(doc.reference);
+        final parentId = session.isRecurring ? session.id : (session.parentSessionId ?? sessionId);
+        
+        // Xóa tất cả sessions có cùng parent
+        final query = await _sessionsRef
+            .where('parent_session_id', isEqualTo: parentId)
+            .get();
+        
+        final batch = FirebaseFirestore.instance.batch();
+        for (final doc in query.docs) {
+          batch.delete(doc.reference);
+        }
+        // Xóa session cha
+        batch.delete(_sessionsRef.doc(parentId));
+        await batch.commit();
+      } else {
+        await _sessionsRef.doc(sessionId).delete();
       }
+    } catch (e) {
+      print("Lỗi khi xóa session: $e");
+      rethrow;
+    }
+  }
 
-      // Xóa luôn session cha (template)
-      batch.delete(_sessionsRef.doc(parentId));
+  /// Cập nhật trạng thái session
+  Future<void> updateSessionStatus(String sessionId, SessionStatus status) async {
+    try {
+      await updateSessionData(sessionId, {
+        'status': status.name,
+      });
+    } catch (e) {
+      print("Lỗi khi cập nhật trạng thái: $e");
+      rethrow;
+    }
+  }
 
-      await batch.commit();
+  /// Lấy tất cả sessions trong khoảng thời gian
+  Stream<List<SessionModel>> streamSessionsInDateRange(DateTime start, DateTime end) {
+    try {
+      final query = _sessionsRef
+          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+          .where('date', isLessThanOrEqualTo: Timestamp.fromDate(end))
+          .orderBy('date')
+          .orderBy('start_time');
 
-    } else {
-      // Chỉ xóa một session đơn lẻ
-      await _sessionsRef.doc(sessionId).delete();
+      return query.snapshots().map((snapshot) =>
+          snapshot.docs.map((doc) => doc.data()).toList());
+    } catch (e) {
+      print("Lỗi khi stream sessions theo range: $e");
+      return Stream.value([]);
     }
   }
 }
