@@ -5,6 +5,9 @@ import '../models/class_model.dart';
 import '../models/course_model.dart';
 import '../models/face_data_model.dart';
 import '../models/session_model.dart';
+import '../models/majors_model.dart';
+import '../models/department_model.dart';
+import '../models/room_model.dart';
 
 /// Interface chuẩn cho các model có id
 abstract class HasId {

@@ -6,6 +6,7 @@ class ClassModel implements HasId {
   final String name; // "CNTT-01 K62"
   final String? departmentId; // "CNTT" - Khoa quản lý
   final String? headTeacherId; // ⭐ THÊM: GV chủ nhiệm lớp
+  final String? majorId;
   
   // ⭐ SỬA: XÓA courseId, lecturerId - thay bằng:
   final List<String>? courseIds; // Các môn lớp này học
@@ -20,6 +21,7 @@ class ClassModel implements HasId {
     required String id,
     required this.name,
     this.departmentId,
+     this.majorId,
     this.headTeacherId,
     this.courseIds,
     this.studentIds,
