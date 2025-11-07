@@ -4,8 +4,13 @@ const Color primaryColor = Color(0xFF0D47A1);
 
 class Sidebar extends StatelessWidget {
   final Function(int) onItemSelected;
+  final VoidCallback? onLogout;
 
-  const Sidebar({Key? key, required this.onItemSelected}) : super(key: key);
+  const Sidebar({
+    Key? key,
+    required this.onItemSelected,
+    this.onLogout, // Optional callback
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -86,9 +91,58 @@ class Sidebar extends StatelessWidget {
           ),
           const Spacer(),
 
+          // 🔻 Nút Đăng xuất
+          if (onLogout != null)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.white30),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: ListTile(
+                leading: const Icon(Icons.logout, color: Colors.white),
+                title: const Text(
+                  'Đăng xuất',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                onTap: () {
+                  // Hiển thị dialog xác nhận
+                  showDialog(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return AlertDialog(
+                        title: const Text('Xác nhận đăng xuất'),
+                        content: const Text('Bạn có chắc chắn muốn đăng xuất?'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('Hủy'),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              onLogout!();
+                            },
+                            child: const Text(
+                              'Đăng xuất',
+                              style: TextStyle(color: Colors.red),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+
           // 🔻 Footer
           const Padding(
-            padding: EdgeInsets.only(bottom: 20.0),
+            padding: EdgeInsets.only(bottom: 20.0, top: 8.0),
             child: Text(
               '© 2025 Đại học Thủy Lợi',
               style: TextStyle(color: Colors.white70, fontSize: 12),

@@ -129,23 +129,53 @@ class _TeacherAttendanceState extends State<TeacherAttendance> {
                               room: cd.room,
                               statusLines: cd.statusLines,
                               barColor: cd.barColor,
+
+                              // *** 💡 LOGIC ĐÃ ĐƯỢC SỬA TẠI ĐÂY 💡 ***
                               onPressedQR: () {
-                                // Nếu muốn ràng buộc logic: đang diễn ra thì không tạo QR
+                                final now = DateTime.now();
+
+                                // YÊU CẦU 1: Nếu "Đang diễn ra" (GV muộn) -> CHO PHÉP
+                                // (s.isHappeningNow bao gồm cả việc GV đi muộn)
                                 if (s.isHappeningNow) {
+                                  widget.onShowQR?.call();
+                                  return;
+                                }
+
+                                // YÊU CẦU 2: Nếu "Vào sớm" (Chưa bắt đầu) -> CHẶN
+                                if (now.isBefore(s.startDateTime)) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                       content: Text(
-                                        'Lớp đang diễn ra – không thể tạo QR mới.',
+                                        'Buổi học chưa bắt đầu, không thể tạo QR sớm.',
                                       ),
+                                      backgroundColor: Colors.orange,
                                     ),
                                   );
                                   return;
                                 }
-                                // Gọi callback bên ngoài (nếu có)
-                                widget.onShowQR?.call();
-                                // TODO: hoặc gọi trực tiếp service tạo QR:
-                                // _sessionService.generateAndSaveQr(s.id, const Duration(minutes: 5));
+
+                                // CÁC TRƯỜNG HỢP KHÁC (Đã kết thúc, đã hủy) -> CHẶN
+                                if (now.isAfter(s.endDateTime)) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Buổi học đã kết thúc.'),
+                                      backgroundColor: Colors.grey,
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                if (s.isCancelled) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Buổi học này đã bị hủy.'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                  return;
+                                }
                               },
+                              // *** KẾT THÚC PHẦN SỬA ***
                             ),
                           );
                         },
@@ -364,14 +394,14 @@ class _TeacherAttendanceState extends State<TeacherAttendance> {
                           children: statusLines
                               .map(
                                 (line) => Text(
-                                  line,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey.shade700,
-                                    height: 1.4,
-                                  ),
-                                ),
-                              )
+                              line,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey.shade700,
+                                height: 1.4,
+                              ),
+                            ),
+                          )
                               .toList(),
                         ),
                         // Nút Tạo QR

@@ -19,7 +19,7 @@ class _AdminLayoutState extends State<AdminLayout> {
 
   final List<Widget> pages = const [
     HomePage(),
-    // UsersPage(),
+    UsersPage(),
     ConfigPage(), // Cấu hình
     PermissionsPage(),
     StatisticsPage(),
@@ -32,12 +32,20 @@ class _AdminLayoutState extends State<AdminLayout> {
     });
   }
 
+  void _logout() {
+    print("Đăng xuất thành công!");
+    Navigator.pushReplacementNamed(context, '/login');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Row(
         children: [
-          Sidebar(onItemSelected: onItemSelected),
+          Sidebar(
+            onItemSelected: onItemSelected,
+            onLogout: _logout,
+          ),
           Expanded(
             child: Container(
               color: Colors.grey[100],
