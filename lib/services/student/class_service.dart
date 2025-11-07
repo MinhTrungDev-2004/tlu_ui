@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/class_model.dart';
 import '../../models/session_model.dart';
+import '../../models/course_model.dart';
 import '../firestore_service.dart';
 
 class ClassService {
@@ -31,7 +32,7 @@ class ClassService {
   Future<List<ClassModel>> getClassesByDepartment(String departmentId) async {
     try {
       return await _firestoreService.queryDocuments<ClassModel>(
-        field: 'department_id', // ⭐ SỬA: snake_case
+        field: 'department_id',
         isEqualTo: departmentId,
       );
     } catch (e) {
@@ -44,9 +45,8 @@ class ClassService {
     try {
       print('🔍 [DEBUG] Querying classes for student: $studentId');
       
-      // Query với snake_case (khớp với ClassModel.toMap())
       final classes = await _firestoreService.queryDocuments<ClassModel>(
-        field: 'student_ids', // ⭐ ĐÚNG: snake_case
+        field: 'student_ids',
         arrayContains: studentId,
       );
       
@@ -58,37 +58,13 @@ class ClassService {
     }
   }
 
-  /// 🔹 Lấy lớp học theo giảng viên chủ nhiệm
-  Future<List<ClassModel>> getClassesByHeadTeacher(String teacherId) async {
-    try {
-      return await _firestoreService.queryDocuments<ClassModel>(
-        field: 'head_teacher_id', // ⭐ SỬA: head_teacher_id thay vì lecturer_id
-        isEqualTo: teacherId,
-      );
-    } catch (e) {
-      throw Exception('Lỗi khi lấy lớp học theo giảng viên chủ nhiệm: $e');
-    }
-  }
-
-  /// 🔹 Lấy lớp học theo môn học
-  Future<List<ClassModel>> getClassesByCourse(String courseId) async {
-    try {
-      return await _firestoreService.queryDocuments<ClassModel>(
-        field: 'course_ids', // ⭐ SỬA: course_ids (array)
-        arrayContains: courseId,
-      );
-    } catch (e) {
-      throw Exception('Lỗi khi lấy lớp học theo môn học: $e');
-    }
-  }
-
   // ==================== QUẢN LÝ BUỔI HỌC ====================
 
   /// 🔹 Lấy tất cả buổi học của một lớp
   Future<List<SessionModel>> getSessionsByClass(String classId) async {
     try {
       final sessions = await _firestoreService.queryDocuments<SessionModel>(
-        field: 'class_id', // ⭐ ĐÚNG: snake_case
+        field: 'class_id',
         isEqualTo: classId,
       );
       print('🕒 [DEBUG] Found ${sessions.length} sessions for class $classId');
@@ -98,36 +74,9 @@ class ClassService {
     }
   }
 
-  /// 🔹 Lấy buổi học theo môn học
-  Future<List<SessionModel>> getSessionsByCourse(String courseId) async {
-    try {
-      final sessions = await _firestoreService.queryDocuments<SessionModel>(
-        field: 'course_id', // ⭐ ĐÚNG: snake_case
-        isEqualTo: courseId,
-      );
-      return sessions;
-    } catch (e) {
-      throw Exception('Lỗi khi lấy buổi học theo môn học: $e');
-    }
-  }
-
-  /// 🔹 Lấy buổi học theo giảng viên
-  Future<List<SessionModel>> getSessionsByLecturer(String lecturerId) async {
-    try {
-      final sessions = await _firestoreService.queryDocuments<SessionModel>(
-        field: 'lecturer_id', // ⭐ ĐÚNG: snake_case
-        isEqualTo: lecturerId,
-      );
-      return sessions;
-    } catch (e) {
-      throw Exception('Lỗi khi lấy buổi học theo giảng viên: $e');
-    }
-  }
-
-  /// 🔹 Lấy buổi học theo ngày (ĐÃ SỬA - dùng DateTime)
+  /// 🔹 Lấy buổi học theo ngày
   Future<List<SessionModel>> getSessionsByDate(DateTime date) async {
     try {
-      // Format date để query (chỉ lấy ngày, không giờ)
       final startOfDay = DateTime(date.year, date.month, date.day);
       final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
 
@@ -144,7 +93,7 @@ class ClassService {
     }
   }
 
-  /// 🔹 Lấy buổi học của sinh viên theo ngày (ĐÃ SỬA)
+  /// 🔹 Lấy buổi học của sinh viên theo ngày
   Future<List<SessionModel>> getStudentSessionsByDate({
     required String studentId,
     required DateTime date,
@@ -171,7 +120,7 @@ class ClassService {
 
       print('📦 [DEBUG] Total sessions before filtering: ${allSessions.length}');
 
-      // 3. Lọc theo ngày (ĐÃ SỬA - dùng DateTime)
+      // 3. Lọc theo ngày
       final filteredSessions = allSessions.where((session) {
         final sessionDate = session.date;
         final isSameDate = sessionDate.year == date.year &&
@@ -190,7 +139,77 @@ class ClassService {
     }
   }
 
-  /// 🔹 Lấy buổi học đang diễn ra của sinh viên (ĐÃ SỬA)
+  // 🔥 MỚI: Lấy buổi học với thông tin môn học đầy đủ
+  Future<List<SessionWithCourse>> getStudentSessionsWithCourseInfo({
+    required String studentId,
+    required DateTime date,
+  }) async {
+    try {
+      print('🎯 [DEBUG] Getting sessions with course info for student: $studentId');
+
+      // 1. Lấy sessions cơ bản
+      final sessions = await getStudentSessionsByDate(
+        studentId: studentId,
+        date: date,
+      );
+
+      print('📚 [DEBUG] Loading course info for ${sessions.length} sessions');
+
+      // 2. Lấy thông tin course cho mỗi session
+      final List<SessionWithCourse> result = [];
+
+      for (final session in sessions) {
+        try {
+          final course = await _firestoreService.getDocument<CourseModel>(session.courseId);
+          
+          result.add(SessionWithCourse(
+            session: session,
+            course: course,
+          ));
+
+          print('✅ [DEBUG] Added session with course: ${course?.name ?? "Unknown"}');
+        } catch (e) {
+          print('❌ [DEBUG] Error loading course for session ${session.id}: $e');
+          // Vẫn thêm session nhưng course = null
+          result.add(SessionWithCourse(
+            session: session,
+            course: null,
+          ));
+        }
+      }
+
+      print('🎉 [DEBUG] Final result with course info: ${result.length} sessions');
+      return result;
+    } catch (e) {
+      print('❌ [DEBUG] Error in getStudentSessionsWithCourseInfo: $e');
+      throw Exception('Lỗi khi lấy buổi học với thông tin môn học: $e');
+    }
+  }
+
+  // 🔥 MỚI: Lấy tên môn học từ courseId
+  Future<String> getCourseName(String courseId) async {
+    if (courseId.isEmpty) return 'Không xác định';
+    
+    try {
+      final course = await _firestoreService.getDocument<CourseModel>(courseId);
+      return course?.name ?? 'Môn học không tồn tại';
+    } catch (e) {
+      print('❌ [DEBUG] Error getting course name for $courseId: $e');
+      return courseId; // Fallback về ID nếu lỗi
+    }
+  }
+
+  // 🔥 MỚI: Lấy thông tin course theo ID
+  Future<CourseModel?> getCourseById(String courseId) async {
+    try {
+      return await _firestoreService.getDocument<CourseModel>(courseId);
+    } catch (e) {
+      print('❌ [DEBUG] Error getting course by ID $courseId: $e');
+      return null;
+    }
+  }
+
+  /// 🔹 Lấy buổi học đang diễn ra của sinh viên
   Future<List<SessionModel>> getOngoingStudentSessions(String studentId) async {
     try {
       final now = DateTime.now();
@@ -207,7 +226,7 @@ class ClassService {
     }
   }
 
-  /// 🔹 Lấy buổi học sắp diễn ra của sinh viên (ĐÃ SỬA)
+  /// 🔹 Lấy buổi học sắp diễn ra của sinh viên
   Future<List<SessionModel>> getUpcomingStudentSessions(String studentId) async {
     try {
       final now = DateTime.now();
@@ -222,18 +241,6 @@ class ClassService {
       }).toList();
     } catch (e) {
       throw Exception('Lỗi khi lấy buổi học sắp diễn ra: $e');
-    }
-  }
-
-  /// 🔹 Lấy buổi học theo trạng thái
-  Future<List<SessionModel>> getSessionsByStatus(SessionStatus status) async {
-    try {
-      return await _firestoreService.queryDocuments<SessionModel>(
-        field: 'status',
-        isEqualTo: status.name,
-      );
-    } catch (e) {
-      throw Exception('Lỗi khi lấy buổi học theo trạng thái: $e');
     }
   }
 
@@ -287,20 +294,6 @@ class ClassService {
     }
   }
 
-  /// 🔹 Thêm môn học vào lớp
-  Future<void> addCourseToClass(String classId, String courseId) async {
-    try {
-      final classModel = await getClassById(classId);
-      if (classModel != null) {
-        final updatedClass = classModel.addCourse(courseId);
-        await updateClass(classId, updatedClass);
-        print('✅ Đã thêm môn học $courseId vào lớp $classId');
-      }
-    } catch (e) {
-      throw Exception('Lỗi khi thêm môn học vào lớp: $e');
-    }
-  }
-
   // ==================== STREAM REAL-TIME ====================
 
   /// 🔹 Stream danh sách lớp học của sinh viên
@@ -319,17 +312,17 @@ class ClassService {
     );
   }
 
-  /// 🔹 Stream buổi học của sinh viên theo ngày
-  Stream<List<SessionModel>> watchStudentSessionsByDate({
+  // 🔥 MỚI: Stream buổi học với course info
+  Stream<List<SessionWithCourse>> watchStudentSessionsWithCourseInfo({
     required String studentId,
     required DateTime date,
   }) {
     return _firestoreService.watchCollection<SessionModel>().asyncMap((sessions) async {
-      // Get student's classes first
+      // Lọc sessions theo student và date
       final studentClasses = await getClassesByStudentId(studentId);
       final classIds = studentClasses.map((c) => c.id).toList();
       
-      return sessions.where((session) {
+      final filteredSessions = sessions.where((session) {
         final isStudentInClass = classIds.contains(session.classId);
         final sessionDate = session.date;
         final isSameDate = sessionDate.year == date.year &&
@@ -338,6 +331,18 @@ class ClassService {
         
         return isStudentInClass && isSameDate;
       }).toList();
+
+      // Lấy course info cho mỗi session
+      final List<SessionWithCourse> result = [];
+      for (final session in filteredSessions) {
+        final course = await getCourseById(session.courseId);
+        result.add(SessionWithCourse(
+          session: session,
+          course: course,
+        ));
+      }
+
+      return result;
     });
   }
 
@@ -392,21 +397,30 @@ class ClassService {
       throw Exception('Lỗi khi đếm số sinh viên: $e');
     }
   }
+}
 
-  /// 🔹 Debug direct query
-  Future<void> debugDirectQuery(String studentId) async {
-    print('\n🎯 [DIRECT DEBUG] Testing direct queries...');
-    
-    // Query classes trực tiếp với snake_case
-    final classesSnapshot = await _firestore.collection('classes')
-        .where('student_ids', arrayContains: studentId)
-        .get();
-    print('🏫 Direct query: ${classesSnapshot.docs.length} classes');
-    for (final doc in classesSnapshot.docs) {
-      final data = doc.data();
-      print('   - ${doc.id}: ${data['name']}');
-      print('     student_ids: ${data['student_ids']}');
-      print('     course_ids: ${data['course_ids']}');
-    }
-  }
+// 🔥 THÊM: Model kết hợp Session + Course
+class SessionWithCourse {
+  final SessionModel session;
+  final CourseModel? course;
+
+  SessionWithCourse({
+    required this.session,
+    required this.course,
+  });
+
+  String get courseName => course?.name ?? 'Đang tải...';
+  String get courseCode => course?.courseCode ?? session.courseId;
+  String get room => session.room ?? 'Chưa có phòng';
+  
+  // Các getter tiện ích khác
+  String get displayInfo => '$courseName • $room';
+  bool get hasCourseInfo => course != null;
+  
+  // Delegate các phương thức từ SessionModel
+  DateTime get date => session.date;
+  String get timeDisplay => session.timeDisplay;
+  String get dateDisplay => session.dateDisplay;
+  bool get isHappeningNow => session.isHappeningNow;
+  SessionStatus get status => session.status;
 }
