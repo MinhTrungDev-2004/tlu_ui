@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../register_face/widgets/main_appbar.dart';
-import '../../../../../models/attendance_model.dart';
+import '../../../../../models/attendance_model.dart' as attendance_model;
+import '../../../../../models/session_model.dart' as session_model;
 import '../../../../../services/student/history_service.dart';
 
 class AttendanceHistoryScreen extends StatefulWidget {
@@ -15,7 +16,6 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
   String selectedFilter = "Tất cả";
   final AttendanceHistoryService _service = AttendanceHistoryService();
   
-  // 🔥 SỬA HOÀN TOÀN: State management đơn giản
   String? _studentId;
   bool _isLoading = true;
   bool _hasError = false;
@@ -38,7 +38,6 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
     try {
       print('🎬 INIT: Initializing attendance history screen');
       
-      // 1. Lấy user từ Firebase Auth
       final User? user = FirebaseAuth.instance.currentUser;
       
       if (user == null) {
@@ -53,7 +52,6 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
       _studentId = user.uid;
       print('✅ User found: $_studentId');
 
-      // 2. Load data
       await _loadData();
       
     } catch (e) {
@@ -76,7 +74,6 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
     try {
       print('🔄 Loading attendance data...');
       
-      // 🔥 SỬA: Dùng await để đảm bảo load xong mới update UI
       final history = await _service.getStudentAttendanceHistory(_studentId!);
       final stats = await _service.getAttendanceStats(_studentId!);
       
@@ -122,7 +119,6 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
   }
 
   Widget _buildBody() {
-    // 🔥 SỬA: Logic hiển thị đơn giản
     if (_isLoading) {
       return _buildLoadingState();
     }
@@ -156,9 +152,6 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
     );
   }
 
-  // ======================
-  // 🔸 WIDGET: Thống kê chuyên cần
-  // ======================
   Widget _buildStatisticsCard() {
     final total = _statsData['total'] as int;
     final present = _statsData['present'] as int;
@@ -225,9 +218,6 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
     );
   }
 
-  // ======================
-  // 🔸 WIDGET: Bộ lọc
-  // ======================
   Widget _buildFilterCard() {
     final filters = ["Tất cả", "Có mặt", "Muộn", "Vắng"];
 
@@ -289,9 +279,6 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
     );
   }
 
-  // ======================
-  // 🔸 WIDGET: Danh sách lịch sử
-  // ======================
   Widget _buildHistoryList() {
     if (_historyData.isEmpty) {
       return _buildEmptyState();
@@ -308,20 +295,12 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
     );
   }
 
-  // ======================
-  // 🔸 WIDGET: Item lịch sử
-  // ======================
   Widget _buildHistoryItem(AttendanceHistory item) {
-    Color getStatusColor(String statusColor) {
-      switch (statusColor) {
-        case 'green': return Colors.green;
-        case 'orange': return Colors.orange;
-        case 'red': return Colors.red;
-        default: return Colors.grey;
-      }
-    }
-
-    final statusColor = getStatusColor(item.statusColor);
+    // 🎯 SỬA LỖI: Sử dụng Color thay vì String và xử lý withOpacity đúng cách
+    final Color statusColor = _getStatusColor(item.attendanceData.status);
+    final Color iconBackgroundColor = statusColor.withOpacity(0.2);
+    final Color statusBackgroundColor = statusColor.withOpacity(0.1);
+    final Color statusBorderColor = statusColor.withOpacity(0.3);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -334,7 +313,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.2),
+              color: iconBackgroundColor, // 🎯 ĐÃ SỬA
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -374,8 +353,8 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
                 const SizedBox(height: 4),
                 Text(
                   'Điểm danh: ${item.checkinTime}',
-                  style: TextStyle(
-                    color: const Color.fromARGB(255, 82, 134, 255),
+                  style: const TextStyle(
+                    color: Color.fromARGB(255, 82, 134, 255),
                     fontSize: 12,
                   ),
                 ),
@@ -386,9 +365,9 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.1),
+              color: statusBackgroundColor, // 🎯 ĐÃ SỬA
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: statusColor.withOpacity(0.3)),
+              border: Border.all(color: statusBorderColor), // 🎯 ĐÃ SỬA
             ),
             child: Text(
               item.statusText,
@@ -404,9 +383,6 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
     );
   }
 
-  // ======================
-  // 🔸 WIDGET: Các trạng thái
-  // ======================
   Widget _buildLoadingState() {
     return const Center(
       child: Column(
@@ -505,7 +481,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
       width: 90,
       padding: const EdgeInsets.symmetric(vertical: 10),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.9),
+        color: color.withOpacity(0.9), // 🎯 ĐÃ SỬA - với Color gốc
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
@@ -530,11 +506,11 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
   List<AttendanceHistory> _filterHistory(List<AttendanceHistory> history, String filter) {
     switch (filter) {
       case "Có mặt":
-        return history.where((item) => item.attendance.status == AttendanceStatus.present).toList();
+        return history.where((item) => item.attendanceData.status == attendance_model.AttendanceStatus.present).toList();
       case "Muộn":
-        return history.where((item) => item.attendance.status == AttendanceStatus.late).toList();
+        return history.where((item) => item.attendanceData.status == attendance_model.AttendanceStatus.late).toList();
       case "Vắng":
-        return history.where((item) => item.attendance.status == AttendanceStatus.absent).toList();
+        return history.where((item) => item.attendanceData.status == attendance_model.AttendanceStatus.absent).toList();
       default:
         return history;
     }
@@ -544,6 +520,20 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
     if (rate >= 80) return Colors.green;
     if (rate >= 60) return Colors.orange;
     return Colors.red;
+  }
+
+  // 🎯 THÊM PHƯƠNG THỨC MỚI: Chuyển đổi AttendanceStatus sang Color
+  Color _getStatusColor(attendance_model.AttendanceStatus status) {
+    switch (status) {
+      case attendance_model.AttendanceStatus.present:
+        return Colors.green;
+      case attendance_model.AttendanceStatus.late:
+        return Colors.amber;
+      case attendance_model.AttendanceStatus.absent:
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
   }
 
   BoxDecoration _cardDecoration() {
