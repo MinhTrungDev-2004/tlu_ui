@@ -125,7 +125,7 @@ exports.compareFaces = onCall(
         } catch (error) {
             console.error("❌ Lỗi khi so sánh khuôn mặt:", error);
             // Quan trọng: Phải ném ra lỗi để client Flutter bắt được mã lỗi
-            throw new Error(error.message); 
+            throw new Error(error.message);
         }
     }
 );
@@ -142,7 +142,7 @@ exports.extractFaceEmbedding = onCall(
     async (request) => {
         // Thay vì imageUrl, chúng ta nhận bucket và path từ client
         const { bucketName, filePath } = request.data;
-        
+
         // Kiểm tra đầu vào mới
         if (!bucketName || !filePath) {
             throw new Error("Thiếu bucketName hoặc filePath!");
@@ -150,7 +150,7 @@ exports.extractFaceEmbedding = onCall(
 
         try {
             // KHÔNG cần tải ảnh bằng axios nữa
-            
+
             // 1. Chuẩn bị URI nội bộ cho Vision API
             // Vision API có thể truy cập nội bộ Storage qua URI này
             const imageUri = `gs://${bucketName}/${filePath}`;
@@ -158,7 +158,7 @@ exports.extractFaceEmbedding = onCall(
 
             // 2. Gọi Vision API để nhận dạng
             const faceDetection = await detectFaces(imageUri);
-            
+
             // 3. Xử lý kết quả Vision API
             if (faceDetection.faces.length === 0)
                 throw new Error("Không phát hiện khuôn mặt trong ảnh!");
@@ -204,11 +204,11 @@ exports.helloWorld = onRequest(
 async function detectFaces(imageUri) {
     try {
         // Đảm bảo module Vision đã được khai báo trong package.json
-        const vision = require("@google-cloud/vision"); 
+        const vision = require("@google-cloud/vision");
         const client = new vision.ImageAnnotatorClient();
-        
+
         // Gọi API với URI nội bộ (gs://...)
-        const [result] = await client.faceDetection(imageUri); 
+        const [result] = await client.faceDetection(imageUri);
         const faces = result.faceAnnotations || [];
 
         return {

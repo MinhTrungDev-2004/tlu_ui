@@ -331,8 +331,6 @@ class _QRAttendanceContentState extends State<QRAttendanceContent> {
               const SizedBox(height: 16),
 
               // *** BẠN SẼ CẦN THÊM LOGIC ĐỂ TRUYỀN session.classId VÀO ĐÂY ***
-              // Tạm thời, tôi sẽ giữ placeholder cũ của bạn
-              // vì `_StudentListWidget` của tôi đã bị xóa.
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -341,8 +339,7 @@ class _QRAttendanceContentState extends State<QRAttendanceContent> {
                   border: Border.all(color: Colors.grey[300]!),
                 ),
                 child: const Text(
-                  'Chưa kết nối danh sách sinh viên.\n'
-                      'Gợi ý: lấy studentIds từ ClassModel -> load UserModel của SV -> lọc theo tìm kiếm -> hiển thị & gọi AttendanceService.upsert khi điểm danh thủ công.',
+                  'Ngô Minh Trung - Phát Triển Sau',
                   style: TextStyle(fontSize: 13, color: Colors.black54),
                 ),
               ),
@@ -495,8 +492,6 @@ class _QrCountdownWidgetState extends State<_QrCountdownWidget> {
   @override
   void didUpdateWidget(covariant _QrCountdownWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Nếu thời gian hết hạn thay đổi (VD: giảng viên bấm làm mới QR)
-    // chúng ta cần hủy timer cũ và bắt đầu timer mới
     if (widget.expiryTime != oldWidget.expiryTime) {
       _timer?.cancel();
       _updateTime(); // Cập nhật text ngay lập tức
